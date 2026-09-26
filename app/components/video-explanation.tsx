@@ -31,7 +31,7 @@ export function VideoExplanation() {
       <div className="video-modal__content">
         <button className="video-modal__close" type="button" aria-label="Close video" autoFocus onClick={() => setIsOpen(false)}>×</button>
         {isOpen ? <iframe
-          src="https://www.youtube.com/embed/73-SFzW9C9Q?autoplay=1&playsinline=1"
+          src="https://www.youtube.com/embed/1xZobtI0x9M?autoplay=1&playsinline=1"
           title="ask2human video explanation"
           allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
           referrerPolicy="strict-origin-when-cross-origin"
