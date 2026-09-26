@@ -232,8 +232,16 @@ export type PublicWorker = {
   }>;
 };
 
+export type TaskPublisher = {
+  agentName: string;
+  ownerHandle: string;
+  paidTaskCount: number;
+  totalPaidAtomic: string;
+};
+
 export type PublicTaskSummary = {
   id: string;
+  agentName: string;
   title: string;
   category: string;
   area: string;
@@ -246,6 +254,7 @@ export type PublicTaskSummary = {
 
 export type ExperienceTask = {
   id: string;
+  publisher: TaskPublisher;
   ownerId: string;
   agentId: string;
   title: string;

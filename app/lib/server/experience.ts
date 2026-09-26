@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { db } from './db';
 import { assert } from './errors';
 import { ownerForSession, workerForSession } from './identity';
@@ -12,29 +13,42 @@ const MAINNET_USDC = {
   network: 'mainnet',
 } as const;
 
+const OWNER_HANDLE_DOMAIN = 'ask2human:public-owner-handle:v1:';
+
 function feeAtBps(grossAtomic: string, feeBps: number): string {
   return ((BigInt(grossAtomic) * BigInt(feeBps)) / 10_000n).toString();
 }
 
+export function publicOwnerHandle(ownerId: string): string {
+  return createHash('sha256')
+    .update(OWNER_HANDLE_DOMAIN)
+    .update(ownerId.trim().toLowerCase())
+    .digest('hex')
+    .slice(0, 12)
+    .toUpperCase();
+}
+
 export async function listPublicTasks(filters: { category?: string; query?: string; status?: "open" | "completed" } = {}) {
   const rows = await db()`
-    SELECT id, title, category, area, amount_atomic, asset, network, decimals,
-           deadline, state, created_at
-    FROM tasks
+    SELECT t.id, t.title, t.category, t.area, t.amount_atomic, t.asset, t.network, t.decimals,
+           t.deadline, t.state, t.created_at, a.name AS agent_name
+    FROM tasks t
+    JOIN agents a ON a.id = t.agent_id
     WHERE (
-        (${filters.status === 'completed'} AND state IN ('PAID', 'REJECTED')
-          AND EXISTS (SELECT 1 FROM settlements s WHERE s.task_id = tasks.id AND s.settled_at IS NOT NULL))
-        OR (${filters.status !== 'completed'} AND state = 'OPEN' AND deadline > now())
+        (${filters.status === 'completed'} AND t.state IN ('PAID', 'REJECTED')
+          AND EXISTS (SELECT 1 FROM settlements s WHERE s.task_id = t.id AND s.settled_at IS NOT NULL))
+        OR (${filters.status !== 'completed'} AND t.state = 'OPEN' AND t.deadline > now())
       )
-      AND (${filters.category ?? null}::text IS NULL OR category = ${filters.category ?? null})
+      AND (${filters.category ?? null}::text IS NULL OR t.category = ${filters.category ?? null})
       AND (${filters.query ? `%${filters.query.trim()}%` : null}::text IS NULL OR
-           title ILIKE ${filters.query ? `%${filters.query.trim()}%` : null} OR
-           category ILIKE ${filters.query ? `%${filters.query.trim()}%` : null} OR
-           area ILIKE ${filters.query ? `%${filters.query.trim()}%` : null})
-    ORDER BY created_at DESC LIMIT 100
+           t.title ILIKE ${filters.query ? `%${filters.query.trim()}%` : null} OR
+           t.category ILIKE ${filters.query ? `%${filters.query.trim()}%` : null} OR
+           t.area ILIKE ${filters.query ? `%${filters.query.trim()}%` : null})
+    ORDER BY t.created_at DESC LIMIT 100
   `;
   return rows.map((row) => ({
     id: row.id,
+    agentName: String(row.agent_name),
     title: row.title,
     category: row.category,
     area: row.area,
@@ -67,9 +81,31 @@ export async function getPublicTaskStats(filters: { category?: string; query?: s
 
 export async function getExperienceTask(taskId: string, session?: Session | null) {
   const [row] = await db()`
+    WITH owner_payment_reputation AS (
+      SELECT payment_tasks.owner_id,
+             COUNT(*)::integer AS paid_task_count,
+             COALESCE(SUM(s.net_atomic), 0)::text AS total_paid_atomic
+      FROM tasks payment_tasks
+      JOIN settlements s ON s.task_id = payment_tasks.id
+      WHERE s.settled_at IS NOT NULL
+        AND s.status IN ('PAID', 'REJECTED')
+        AND s.net_atomic > 0
+        AND s.asset = 'USDC'
+        AND s.network = 'mainnet'
+        AND s.decimals = 6
+        AND ((s.status = 'PAID' AND NULLIF(BTRIM(s.release_digest), '') IS NOT NULL)
+          OR (s.status = 'REJECTED' AND NULLIF(BTRIM(s.rejection_digest), '') IS NOT NULL))
+        AND payment_tasks.owner_id = (
+          SELECT task_owner.owner_id FROM tasks task_owner WHERE task_owner.id = ${taskId}
+        )
+      GROUP BY payment_tasks.owner_id
+    )
     SELECT t.*, w.display_name AS worker_name, w.wallet_address AS worker_wallet,
            w.status AS worker_status, w.idkit_verified_at AS worker_idkit_verified_at,
            w.wallet_verified_at AS worker_wallet_verified_at,
+           a.name AS agent_name,
+           COALESCE(r.paid_task_count, 0)::integer AS owner_paid_task_count,
+           COALESCE(r.total_paid_atomic, '0')::text AS owner_total_paid_atomic,
            s.status AS settlement_status, s.amount_atomic AS settlement_amount_atomic,
            s.asset AS settlement_asset, s.network AS settlement_network,
            s.decimals AS settlement_decimals, s.fee_atomic, s.net_atomic,
@@ -81,6 +117,8 @@ export async function getExperienceTask(taskId: string, session?: Session | null
            e.id AS evidence_id, e.media_type, e.byte_length, e.sha256 AS evidence_sha256,
            e.report AS evidence_report, e.uploaded_at
     FROM tasks t
+    JOIN agents a ON a.id = t.agent_id
+    LEFT JOIN owner_payment_reputation r ON r.owner_id = t.owner_id
     LEFT JOIN workers w ON w.id = t.assigned_worker_id
     LEFT JOIN settlements s ON s.task_id = t.id
     LEFT JOIN evidence e ON e.task_id = t.id
@@ -165,6 +203,7 @@ export async function getExperienceTask(taskId: string, session?: Session | null
 
   return {
     id: row.id,
+    publisher: publisherFrom(row),
     ownerId: row.owner_id,
     agentId: row.agent_id,
     title: row.title,
@@ -505,6 +544,15 @@ function assetFrom(row: Record<string, any>) {
   const decimals = Number(row.decimals ?? (asset === 'USDC' ? 6 : 9));
   const coinType = row.coin_type ?? (asset === 'USDC' ? MAINNET_USDC.coinType : '0x2::sui::SUI');
   return { symbol: asset, coinType, decimals, network };
+}
+
+function publisherFrom(row: Record<string, any>) {
+  return {
+    agentName: String(row.agent_name),
+    ownerHandle: publicOwnerHandle(String(row.owner_id)),
+    paidTaskCount: Number(row.owner_paid_task_count ?? 0),
+    totalPaidAtomic: String(row.owner_total_paid_atomic ?? '0'),
+  };
 }
 
 function safeChecklist(value: unknown): string[] {

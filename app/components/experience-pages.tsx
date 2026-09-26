@@ -8,6 +8,7 @@ import type { IDKitResult } from "@worldcoin/idkit";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { AppNavigation } from "./app-navigation";
 import { McpQuickStart } from "./mcp-quick-start";
+import { TaskPublisher } from "./task-publisher";
 import { WorkIntro, WorkSetup, WorkStep } from "./work-setup";
 import { Callout, EmptyState, LoadingState, SectionHeading, StatusBadge } from "./ui";
 import { dAppKit } from "../lib/client/dapp-kit";
@@ -601,7 +602,7 @@ function MarketplaceContent() {
         ? <EmptyState title={completed ? "No completed tasks found" : "No open tasks found"}>Try changing your search or category. Completed tasks appear after settlement is confirmed.</EmptyState>
         : <div className="agent-grid">{rows.map((task) => <article key={task.id} className="agent-row task-row">
           <div className="agent-row__art"><span className="task-emblem" aria-hidden="true">{task.category.slice(0, 1).toUpperCase()}</span></div>
-          <div className="agent-row__content"><h3>{task.title}</h3><p className="agent-row__description">{completed ? "View the completed task and its settlement status." : "Open the task page for the full brief and application requirements."}</p><div className="agent-row__meta"><span>{task.category}</span><span>{task.area}</span><span>Due {dateLabel(task.deadline)}</span></div></div>
+          <div className="agent-row__content"><h3>{task.title}</h3><p className="task-publisher__identity task-publisher__agent">Published by <strong>{task.agentName}</strong></p><p className="agent-row__description">{completed ? "View the completed task and its settlement status." : "Open the task page for the full brief and application requirements."}</p><div className="agent-row__meta"><span>{task.category}</span><span>{task.area}</span><span>Due {dateLabel(task.deadline)}</span></div></div>
           <div className="agent-row__offer"><strong>{formatAtomic(task.amountAtomic, task.asset)}</strong><StatusBadge value={taskStatusLabel(task.state)} tone={taskTone(task.state)} /><small>Task reward</small></div>
           <div className="agent-row__actions"><a className="button button--primary" href={`/tasks/${task.id}`}>View task <span aria-hidden="true">↗</span></a></div>
         </article>)}</div>}
@@ -816,6 +817,7 @@ function TaskContent({ taskId }: { taskId: string }) {
           <div><p className="eyebrow">Task details</p><h1>{task.title}</h1></div>
           <StatusBadge value={taskStatusLabel(task.state)} tone={taskTone(task.state)} />
         </div>
+        <TaskPublisher publisher={task.publisher} />
         <div className="task-reward"><span>Task reward</span><strong>{formatAtomic(task.amountAtomic, task.asset)}</strong><small>Total before fees</small></div>
         <dl className="task-summary-facts">
           <div><dt>Category</dt><dd>{task.category}</dd></div>
