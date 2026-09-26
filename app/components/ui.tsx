@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Image from "next/image";
-import logo from "../img/ask2human_logo.png";
+import logo from "../img/ask2human_logo2.png";
 
 export function BrandMark() {
   return <span className="brand-mark"><Image className="brand-mark__logo" src={logo} alt="" priority /></span>;
