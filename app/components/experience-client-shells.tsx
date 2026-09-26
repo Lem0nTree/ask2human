@@ -3,7 +3,6 @@
 import dynamic from "next/dynamic";
 import { useState, type ChangeEvent, type ReactNode } from "react";
 import { BrandMark, LoadingState } from "./ui";
-import { McpQuickStart } from "./mcp-quick-start";
 
 function ExperienceFallbackFrame({ children }: { children: ReactNode }) {
   return <>
@@ -106,23 +105,6 @@ function WorkerFallback() {
   </main></ExperienceFallbackFrame>;
 }
 
-function AgentsFallback() {
-  return <ExperienceFallbackFrame><main className="page-shell">
-    <section className="directory-hero directory-hero--compact">
-      <p className="eyebrow">Owner workspace · hire a human</p>
-      <h1>Set up once. <span>Hire with clarity.</span></h1>
-      <p>Sign in as the owner, link a payment wallet with a personal signature, set spending limits, then post a task for human applicants.</p>
-      <small>Posting does not charge your wallet. Worker review timing starts after delivery.</small>
-    </section>
-    <section className="section-block">
-      <McpQuickStart />
-      <div className="section-heading"><div><p className="eyebrow">Four steps</p><h2>Owner setup is loading</h2><p className="section-heading__description">The owner identity, payment wallet, hiring profile, and task form will appear in sequence. Existing tasks remain available from their task pages.</p></div></div>
-      <LoadingState label="Loading hiring setup…" variant="list" />
-      <a className="button button--primary" href="/">View open tasks</a>
-    </section>
-  </main></ExperienceFallbackFrame>;
-}
-
 const MarketplacePage = dynamic(() => import("./experience-pages").then((module) => module.MarketplacePage), {
   ssr: false,
   loading: () => <MarketplaceFallback />,
@@ -139,10 +121,8 @@ const WorkerPage = dynamic(() => import("./experience-pages").then((module) => m
   ssr: false,
   loading: () => <WorkerFallback />,
 });
-const AgentsPage = dynamic(() => import("./experience-pages").then((module) => module.AgentsPage), {
-  ssr: false,
-  loading: () => <AgentsFallback />,
-});
+// Render the real hiring layout on the server; its data sections own loading states.
+const AgentsPage = dynamic(() => import("./experience-pages").then((module) => module.AgentsPage));
 
 export function MarketplaceExperienceShell() { return <MarketplacePage />; }
 export function TaskExperienceShell({ taskId }: { taskId: string }) { return <TaskPage taskId={taskId} />; }

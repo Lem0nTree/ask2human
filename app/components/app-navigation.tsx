@@ -1,6 +1,6 @@
 "use client";
 
-import { ConnectButton } from "@mysten/dapp-kit-react/ui";
+import { ConnectButton } from "./wallet-connect-button";
 import { dAppKit } from "../lib/client/dapp-kit";
 import { BrandMark } from "./ui";
 
