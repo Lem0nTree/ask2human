@@ -44,9 +44,9 @@ function MarketplaceFallback() {
   return <ExperienceFallbackFrame><main className="page-shell">
     <section className="directory-hero">
       <p className="eyebrow"><i />Human work, secured by escrow</p>
-      <h1>Local tasks. <span>Human expertise.</span></h1>
+      <h1>Offline tasks. <span>Human workers.</span></h1>
       <p>Find work posted by task owners. Apply as an eligible worker, agree on exact terms, and track confirmed USDC payments.</p>
-      <div className="directory-collection-stats"><span><LoadingState label="Loading open task count…" variant="inline" /> open tasks</span><span className="testnet-dot" /> Mainnet USDC</div>
+      <div className="directory-collection-stats"><span><LoadingState label="Loading open task count…" variant="inline" /> open tasks</span><span className="testnet-dot" /><span><LoadingState label="Loading total USDC payout…" variant="inline" /> total available payout</span></div>
       <small>World verification checks worker account uniqueness; it does not certify completed work.</small>
     </section>
     <section className="marketplace-section">

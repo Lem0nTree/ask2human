@@ -549,6 +549,7 @@ export function MarketplacePage() {
 function MarketplaceContent() {
   const controller = useExperienceController();
   const [rows, setRows] = useState<PublicTaskSummary[]>([]);
+  const [taskStats, setTaskStats] = useState({ count: 0, totalPayoutAtomic: "0" });
   const [search, setSearch] = useState(() => typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("q") ?? "");
   const [category, setCategory] = useState(() => typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("category") ?? "");
   const [loadError, setLoadError] = useState("");
@@ -559,9 +560,10 @@ function MarketplaceContent() {
     const requestId = ++requestSequence.current;
     setLoadingTasks(true);
     try {
-      const result = await readExperience<{ tasks: PublicTaskSummary[] }>("tasks", { q: search, category });
+      const result = await readExperience<{ tasks: PublicTaskSummary[]; stats: { count: number; totalPayoutAtomic: string } }>("tasks", { q: search, category });
       if (requestId !== requestSequence.current) return;
       setRows(result.tasks);
+      setTaskStats(result.stats);
       setLoadError("");
     } catch (cause) {
       if (requestId !== requestSequence.current) return;
@@ -578,9 +580,9 @@ function MarketplaceContent() {
     <Feedback error={controller.error} notice={controller.notice} />
     <section className="directory-hero">
       <p className="eyebrow"><i />Human work, secured by escrow</p>
-      <h1>Local tasks. <span>Human expertise.</span></h1>
+      <h1>Offline tasks. <span>Human workers.</span></h1>
       <p>Find work posted by task owners. Apply as an eligible worker, agree on exact terms, and track confirmed USDC payments.</p>
-      <div className="directory-collection-stats"><span>{loadingTasks ? <LoadingState label="Loading open task count…" variant="inline" /> : <strong>{rows.length}</strong>} open tasks</span><span className="testnet-dot" /> Mainnet USDC</div>
+      <div className="directory-collection-stats"><span>{loadingTasks ? <LoadingState label="Loading open task count…" variant="inline" /> : <strong>{loadError ? "—" : taskStats.count}</strong>} open tasks</span><span className="testnet-dot" /><span>{loadingTasks ? <LoadingState label="Loading total USDC payout…" variant="inline" /> : <strong>{loadError ? "—" : formatAtomic(taskStats.totalPayoutAtomic, MAINNET_USDC)}</strong>} total available payout</span></div>
       <small>World verification checks worker account uniqueness; it does not certify completed work.</small>
     </section>
     <section className="marketplace-section" aria-labelledby="marketplace-title">

@@ -42,6 +42,21 @@ export async function listPublicTasks(filters: { category?: string; query?: stri
   }));
 }
 
+export async function getPublicTaskStats(filters: { category?: string; query?: string } = {}) {
+  const [row] = await db()`
+    SELECT COUNT(*)::integer AS count,
+           COALESCE(SUM(CASE WHEN asset = 'USDC' AND network = 'mainnet' THEN amount_atomic::numeric ELSE 0 END), 0) AS total_payout_atomic
+    FROM tasks
+    WHERE state = 'OPEN' AND deadline > now()
+      AND (${filters.category ?? null}::text IS NULL OR category = ${filters.category ?? null})
+      AND (${filters.query ? `%${filters.query.trim()}%` : null}::text IS NULL OR
+           title ILIKE ${filters.query ? `%${filters.query.trim()}%` : null} OR
+           category ILIKE ${filters.query ? `%${filters.query.trim()}%` : null} OR
+           area ILIKE ${filters.query ? `%${filters.query.trim()}%` : null})
+  `;
+  return { count: Number(row.count), totalPayoutAtomic: String(row.total_payout_atomic) };
+}
+
 export async function getExperienceTask(taskId: string, session?: Session | null) {
   const [row] = await db()`
     SELECT t.*, w.display_name AS worker_name, w.wallet_address AS worker_wallet,

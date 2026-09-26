@@ -4,6 +4,7 @@ import { HttpError } from '../../lib/server/errors';
 import {
   applyForTask,
   getExperienceTask,
+  getPublicTaskStats,
   getOwnerExperienceDashboard,
   getTaskApplicantsForOwner,
   getWorkerDashboard,
@@ -31,7 +32,9 @@ export async function GET(request: Request) {
     if (view === 'tasks') {
       const category = url.searchParams.get('category')?.trim() || undefined;
       const query = url.searchParams.get('q')?.trim() || undefined;
-      return { tasks: await listPublicTasks({ category, query }) };
+      const filters = { category, query };
+      const [tasks, stats] = await Promise.all([listPublicTasks(filters), getPublicTaskStats(filters)]);
+      return { tasks, stats };
     }
     if (view === 'task') {
       const taskId = idSchema.parse(url.searchParams.get('taskId'));
