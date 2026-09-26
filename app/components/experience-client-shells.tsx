@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { LoadingState } from "./ui";
 
 function loading(label: string) {
-  return <main className="page-shell"><LoadingState label={label} /></main>;
+  return <main className="page-shell"><LoadingState label={label} variant="workspace" /></main>;
 }
 
 const Marketplace = dynamic(() => import("./experience-pages").then((module) => module.MarketplacePage), {

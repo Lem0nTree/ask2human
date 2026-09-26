@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
+import Image from "next/image";
+import logo from "../img/ask2human_logo.png";
 
 export function BrandMark() {
-  return <span className="brand-mark"><span className="brand-mark__glyph" aria-hidden="true">2</span><span className="brand-mark__name">ask2human</span></span>;
+  return <span className="brand-mark"><Image className="brand-mark__logo" src={logo} alt="" priority /></span>;
 }
 
 export function StatusBadge({ value, tone = "neutral" }: { value: string; tone?: "success" | "warning" | "danger" | "neutral" | "info" }) {
@@ -20,6 +22,26 @@ export function SectionHeading({ eyebrow, title, description }: { eyebrow: strin
   return <div className="section-heading"><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2><p className="section-heading__description">{description}</p></div></div>;
 }
 
-export function LoadingState({ label }: { label: string }) {
-  return <div className="loading-state" role="status"><span className="loading-state__spinner" aria-hidden="true" />{label}</div>;
+export function LoadingState({ label, variant = "list" }: { label: string; variant?: "list" | "detail" | "profile" | "workspace" }) {
+  return <div className={`loading-state loading-state--${variant}`} role="status" aria-label={label}>
+    {variant === "detail" ? <>
+      <div className="loading-state__detail-head"><span className="skeleton-block skeleton-block--heading" /><span className="skeleton-block skeleton-block--badge" /></div>
+      <div className="loading-state__facts">{Array.from({ length: 6 }, (_, index) => <div className="loading-state__fact" key={index}><span className="skeleton-block skeleton-block--short" /><span className="skeleton-block skeleton-block--medium" /></div>)}</div>
+      <div className="loading-state__copy"><span className="skeleton-block" /><span className="skeleton-block skeleton-block--wide" /><span className="skeleton-block skeleton-block--half" /></div>
+    </> : variant === "profile" ? <>
+      <div className="loading-state__profile-head"><span className="skeleton-block skeleton-block--heading" /><span className="skeleton-block skeleton-block--medium" /><span className="skeleton-block skeleton-block--badge" /></div>
+      <LoadingRows count={2} />
+    </> : variant === "workspace" ? <>
+      <div className="loading-state__panels">{Array.from({ length: 2 }, (_, index) => <div className="loading-state__panel" key={index}><span className="skeleton-block skeleton-block--medium" /><span className="skeleton-block" /><span className="skeleton-block skeleton-block--wide" /><span className="skeleton-block skeleton-block--button" /></div>)}</div>
+      <LoadingRows count={2} />
+    </> : <LoadingRows count={3} />}
+  </div>;
+}
+
+function LoadingRows({ count }: { count: number }) {
+  return <div className="loading-state__rows">{Array.from({ length: count }, (_, index) => <div className="loading-state__row" key={index}>
+    <span className="skeleton-block skeleton-block--art" />
+    <div className="loading-state__row-copy"><span className="skeleton-block skeleton-block--wide" /><span className="skeleton-block" /><span className="skeleton-block skeleton-block--half" /></div>
+    <span className="skeleton-block skeleton-block--badge" />
+  </div>)}</div>;
 }
