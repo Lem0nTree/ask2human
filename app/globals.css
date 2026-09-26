@@ -131,6 +131,52 @@ summary { cursor: pointer; padding: .8rem 0; min-height: 2.75rem; font-size: .84
 .callout--warning { border-color: #53472e; background: #28251e; }
 .callout--danger { border-color: #614047; background: #2b2023; }
 .callout--success { border-color: #3c5848; background: #1d2822; }
+.hiring-setup { max-width: 980px; margin: 6px auto 0; }
+.mcp-quick-start { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; padding: 16px 18px; margin-bottom: 20px; border: 1px solid #35333e; border-radius: 10px; background: #1a1a21; }
+.mcp-quick-start > div { flex: 1 1 280px; min-width: 0; }
+.mcp-quick-start h2 { margin: 0; font-size: .9rem; }
+.mcp-quick-start p { margin: 6px 0 0; color: #aaa7b4; font-size: .75rem; line-height: 1.5; }
+.mcp-quick-start__command { display: inline-block; margin-top: 8px; padding: 5px 8px; border-radius: 5px; background: #111116; color: #dec8ed; font-size: .75rem; overflow-wrap: anywhere; }
+.hiring-progress { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; list-style: none; padding: 0; margin: 0 0 16px; }
+.hiring-progress__item { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; min-width: 0; padding: 9px 10px; border: 1px solid #34333d; border-radius: 8px; color: #8f8c98; background: #19191f; }
+.hiring-progress__item > span { display: grid; place-items: center; width: 1.45rem; height: 1.45rem; border: 1px solid #5a5664; border-radius: 50%; font-size: .68rem; }
+.hiring-progress__item small { overflow-wrap: anywhere; font-size: .68rem; line-height: 1.25; }
+.hiring-progress__item--current { border-color: #806994; color: #eee5f5; background: #24202a; }
+.hiring-progress__item--current > span { color: #211c25; border-color: #d9bde8; background: #d9bde8; }
+.hiring-progress__item--complete { border-color: #3d5949; color: #b9dac6; }
+.hiring-progress__item--complete > span { color: #17211b; border-color: #a8d7bc; background: #a8d7bc; }
+.hiring-steps { display: grid; gap: 14px; list-style: none; padding: 0; margin: 0; }
+.hiring-step { display: grid; grid-template-columns: 2.2rem minmax(0, 1fr); gap: 14px; min-width: 0; padding: 22px; border: 1px solid #35333e; border-radius: 12px; background: #1a1a21; }
+.hiring-step--current { border-color: #655275; background: linear-gradient(145deg, #211d28, #1b1a21); }
+.hiring-step--complete { border-color: #3b5748; }
+.hiring-step--locked { opacity: .66; }
+.hiring-step__number { display: grid; place-items: center; width: 2.2rem; height: 2.2rem; border: 1px solid #5b5564; border-radius: 50%; color: #d8c8e1; font-size: .84rem; font-weight: 650; }
+.hiring-step--current .hiring-step__number { border-color: #d9bde8; color: #211c25; background: #d9bde8; }
+.hiring-step--complete .hiring-step__number { border-color: #8fc2a5; color: #17211b; background: #a8d7bc; }
+.hiring-step__body { min-width: 0; }
+.hiring-step__body h2 { margin: 0; font-size: clamp(1.1rem, 2.5vw, 1.45rem); letter-spacing: -.03em; }
+.hiring-step__body h3 { margin: 0; font-size: 1rem; letter-spacing: -.02em; }
+.hiring-step__body > p:not(.eyebrow) { max-width: 70ch; margin: .55rem 0 0; color: #aaa7b4; font-size: .8rem; line-height: 1.65; }
+.hiring-step__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin-top: 15px; }
+.hiring-step__actions > p { flex: 1 1 240px; margin: 0; color: #aaa7b4; font-size: .77rem; line-height: 1.55; }
+.hiring-step__status { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin-top: 14px; color: #aaa7b4; font-size: .75rem; }
+.hiring-step__status .loading-state { flex: 0 0 auto; }
+.hiring-step__optional { color: #aaa7b4; font-size: .75rem; }
+.hiring-step__optional a, .hiring-step__body a { color: #dec8ed; text-decoration: underline; text-underline-offset: 3px; }
+.hiring-step__hint { color: #9995a2; font-size: .72rem; }
+.hiring-profile-picker { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 12px; margin-top: 16px; }
+.hiring-profile-picker label { display: grid; gap: 6px; color: #c6c2cc; font-size: .74rem; }
+.hiring-profile-picker select { width: 100%; }
+.hiring-profile-picker .hiring-step__status { margin: 0; }
+.hiring-profile-form, .hiring-task-form { margin-top: 16px; }
+.hiring-key-notice { display: block; margin-top: 9px; color: #d7c787; font-size: .72rem; line-height: 1.5; }
+.owner-task-lifecycle { margin: 18px 0 0; padding: 16px; border: 1px solid #413a4b; border-radius: 9px; background: #211f27; }
+.owner-task-lifecycle h3 { margin: 0; font-size: .98rem; }
+.owner-task-lifecycle__steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; list-style: none; padding: 0; margin: 13px 0 0; }
+.owner-task-lifecycle__steps li { min-width: 0; padding: 8px; border: 1px solid #36323d; border-radius: 6px; color: #918d9a; font-size: .66rem; line-height: 1.35; }
+.owner-task-lifecycle__steps li[data-state="done"] { border-color: #3d5949; color: #b9dac6; }
+.owner-task-lifecycle__steps li[aria-current="step"] { border-color: #806994; color: #f1e7f6; background: #2a2430; }
+.owner-task-lifecycle__note { margin: 11px 0 0; color: #aaa7b4; font-size: .72rem; line-height: 1.55; }
 .site-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .65rem 1.2rem; border-top: 1px solid var(--groundwork-border); color: #918f9b; font-size: .66rem; margin-top: 52px; padding-top: 16px; }
 
 @media (max-width: 850px) {
@@ -169,5 +215,13 @@ summary { cursor: pointer; padding: .8rem 0; min-height: 2.75rem; font-size: .84
   .skeleton-block--art { width: 42px; height: 42px; }
   .loading-state__facts { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; }
   .loading-state__detail-head { padding: 14px; }
+  .hiring-progress { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hiring-step { grid-template-columns: 1.9rem minmax(0, 1fr); gap: 10px; padding: 15px; }
+  .hiring-step__number { width: 1.9rem; height: 1.9rem; }
+  .hiring-step__actions { align-items: stretch; }
+  .hiring-step__actions .button { width: 100%; }
+  .hiring-profile-picker { grid-template-columns: 1fr; align-items: stretch; }
+  .hiring-profile-picker .hiring-step__status { margin-top: 2px; }
+  .owner-task-lifecycle__steps { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; } }

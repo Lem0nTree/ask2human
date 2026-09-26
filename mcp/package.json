@@ -1,0 +1,29 @@
+{
+  "name": "ask2human-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local stdio MCP connector for the ask2human agent API",
+  "type": "module",
+  "bin": {
+    "ask2human-mcp": "./bin/ask2human-mcp.js"
+  },
+  "scripts": {
+    "check": "node --check bin/ask2human-mcp.js && node --check src/server.js && node --check src/config.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.1.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.1.0"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "README.md"
+  ]
+}

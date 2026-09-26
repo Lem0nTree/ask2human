@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useState, type ChangeEvent, type ReactNode } from "react";
 import { BrandMark, LoadingState } from "./ui";
+import { McpQuickStart } from "./mcp-quick-start";
 
 function ExperienceFallbackFrame({ children }: { children: ReactNode }) {
   return <>
@@ -11,7 +12,7 @@ function ExperienceFallbackFrame({ children }: { children: ReactNode }) {
       <nav className="main-nav" aria-label="Primary navigation">
         <a href="/">Tasks</a>
         <a href="/work">My work</a>
-        <a href="/agents">Agents</a>
+        <a href="/agents">Hire a human</a>
       </nav>
       <div className="nav-actions"><span className="network-pill"><i />Mainnet · USDC</span></div>
     </div></header>
@@ -45,7 +46,7 @@ function MarketplaceFallback() {
     <section className="directory-hero">
       <p className="eyebrow"><i />Human work, secured by escrow</p>
       <h1>Local tasks. <span>Human expertise.</span></h1>
-      <p>Find work from local agents. Apply as an eligible worker, agree on exact terms, and track confirmed USDC payments.</p>
+      <p>Find work posted by task owners. Apply as an eligible worker, agree on exact terms, and track confirmed USDC payments.</p>
       <div className="directory-collection-stats"><span><LoadingState label="Loading open task count…" variant="inline" /> open tasks</span><span className="testnet-dot" /> Mainnet USDC</div>
       <small>World verification checks worker account uniqueness; it does not certify completed work.</small>
     </section>
@@ -54,14 +55,14 @@ function MarketplaceFallback() {
       <div className="filter-panel" role="search">
         <label className="search-field"><span aria-hidden="true">⌕</span><input aria-label="Search open tasks" type="search" placeholder="Search tasks, area, or category" value={search} onChange={changeSearch} /></label>
         <label className="select-field"><span>Category</span><select value={category} onChange={changeCategory}><option value="">All categories</option>{["inspection", "delivery", "photography", "research", "audit", "other"].map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-        <a className="button button--primary" href="/agents">Post a task</a>
+        <a className="button button--primary" href="/agents">Hire a human</a>
       </div>
       <div className="marketplace-results-heading"><span><LoadingState label="Loading task count…" variant="inline" /></span><span>Recently posted</span></div>
       <LoadingState label="Loading open tasks…" variant="list" />
     </section>
     <section className="section-block experience-shortcuts">
       <a className="detail-section" href="/work"><p className="eyebrow">For workers</p><h3>Applications, delivery, and earnings</h3><p>Manage your verified profile and see confirmed payment history.</p></a>
-      <a className="detail-section" href="/agents"><p className="eyebrow">For Agents</p><h3>Post tasks and choose a worker</h3><p>Set budgets, review applicants, and oversee each escrow step.</p></a>
+      <a className="detail-section" href="/agents"><p className="eyebrow">For task owners</p><h3>Hire a human for a task</h3><p>Sign in, link a payment wallet, set spending limits, and follow each escrow step.</p></a>
     </section>
   </main></ExperienceFallbackFrame>;
 }
@@ -108,12 +109,15 @@ function WorkerFallback() {
 function AgentsFallback() {
   return <ExperienceFallbackFrame><main className="page-shell">
     <section className="directory-hero directory-hero--compact">
-      <p className="eyebrow">Agent workspace</p>
-      <h1>Post work. <span>Choose a human.</span></h1>
-      <p>Agents set categories and spend limits; task owners review eligible applicants and select one before requesting funding approval.</p>
+      <p className="eyebrow">Owner workspace · hire a human</p>
+      <h1>Set up once. <span>Hire with clarity.</span></h1>
+      <p>Sign in as the owner, link a payment wallet with a personal signature, set spending limits, then post a task for human applicants.</p>
+      <small>Posting does not charge your wallet. Worker review timing starts after delivery.</small>
     </section>
     <section className="section-block">
-      <div className="section-heading"><div><p className="eyebrow">Owner account</p><h2>Manage your tasks</h2><p className="section-heading__description">Create or recover an owner profile to manage agents and task requests.</p></div></div>
+      <McpQuickStart />
+      <div className="section-heading"><div><p className="eyebrow">Four steps</p><h2>Owner setup is loading</h2><p className="section-heading__description">The owner identity, payment wallet, hiring profile, and task form will appear in sequence. Existing tasks remain available from their task pages.</p></div></div>
+      <LoadingState label="Loading hiring setup…" variant="list" />
       <a className="button button--primary" href="/">View open tasks</a>
     </section>
   </main></ExperienceFallbackFrame>;

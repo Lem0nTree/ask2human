@@ -1,11 +1,13 @@
 "use client";
 
 import { DAppKitProvider, useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
+import { ConnectButton } from "@mysten/dapp-kit-react/ui";
 import { Transaction } from "@mysten/sui/transactions";
 import { IDKitRequestWidget, proofOfHuman } from "@worldcoin/idkit";
 import type { IDKitResult } from "@worldcoin/idkit";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { AppNavigation } from "./app-navigation";
+import { McpQuickStart } from "./mcp-quick-start";
 import { Callout, EmptyState, LoadingState, SectionHeading, StatusBadge } from "./ui";
 import { dAppKit } from "../lib/client/dapp-kit";
 import {
@@ -69,6 +71,63 @@ type IDKitStart = {
 const MAX_EVIDENCE_BYTES = 4 * 1024 * 1024;
 const PENDING_PREFIX = "ask2human:pending-transaction:";
 const CATEGORIES = ["inspection", "delivery", "photography", "research", "audit", "other"];
+const TASK_DRAFT_STORAGE_KEY = "ask2human:hiring-task-draft";
+
+type HiringTaskDraft = {
+  title: string;
+  brief: string;
+  category: string;
+  area: string;
+  checklist: string;
+  amount: string;
+  deadline: string;
+  reviewWindowMinutes: string;
+  rejectSplitPercent: string;
+};
+
+const EMPTY_HIRING_TASK_DRAFT: HiringTaskDraft = {
+  title: "",
+  brief: "",
+  category: "",
+  area: "",
+  checklist: "",
+  amount: "",
+  deadline: "",
+  reviewWindowMinutes: "5",
+  rejectSplitPercent: "50",
+};
+
+function readHiringTaskDraft(ownerId: string): HiringTaskDraft {
+  if (typeof window === "undefined") return EMPTY_HIRING_TASK_DRAFT;
+  try {
+    const stored = JSON.parse(window.sessionStorage.getItem(`${TASK_DRAFT_STORAGE_KEY}:${ownerId}`) ?? "null") as Partial<HiringTaskDraft> | null;
+    if (!stored || typeof stored !== "object") return EMPTY_HIRING_TASK_DRAFT;
+    return {
+      ...EMPTY_HIRING_TASK_DRAFT,
+      ...Object.fromEntries(Object.keys(EMPTY_HIRING_TASK_DRAFT).map((key) => [key, typeof stored[key as keyof HiringTaskDraft] === "string" ? stored[key as keyof HiringTaskDraft] : EMPTY_HIRING_TASK_DRAFT[key as keyof HiringTaskDraft]])) as HiringTaskDraft,
+    };
+  } catch {
+    return EMPTY_HIRING_TASK_DRAFT;
+  }
+}
+
+function ownerTaskStageLabel(state: string): string {
+  if (state === "OPEN") return "Applicants"
+  if (state === "ASSIGNED" || state === "FUNDING") return "Approve and fund"
+  if (state === "FUNDED") return "Worker delivers"
+  if (state === "SUBMITTED" || state === "REVIEW") return "Review and pay"
+  if (state === "PAID" || state === "REJECTED") return "Complete"
+  return "Closed"
+}
+
+function ownerTaskLifecycleStep(state: string): number | null {
+  if (state === "OPEN") return 1;
+  if (state === "ASSIGNED" || state === "FUNDING") return 3;
+  if (state === "FUNDED") return 4;
+  if (state === "SUBMITTED" || state === "REVIEW") return 5;
+  if (state === "PAID" || state === "REJECTED") return 6;
+  return null;
+}
 
 function updateMarketplaceFilter(name: "q" | "category", value: string) {
   const url = new URL(window.location.href);
@@ -441,7 +500,7 @@ function MarketplaceContent() {
     <section className="directory-hero">
       <p className="eyebrow"><i />Human work, secured by escrow</p>
       <h1>Local tasks. <span>Human expertise.</span></h1>
-      <p>Find work from local agents. Apply as an eligible worker, agree on exact terms, and track confirmed USDC payments.</p>
+      <p>Find work posted by task owners. Apply as an eligible worker, agree on exact terms, and track confirmed USDC payments.</p>
       <div className="directory-collection-stats"><span>{loadingTasks ? <LoadingState label="Loading open task count…" variant="inline" /> : <strong>{rows.length}</strong>} open tasks</span><span className="testnet-dot" /> Mainnet USDC</div>
       <small>World verification checks worker account uniqueness; it does not certify completed work.</small>
     </section>
@@ -450,11 +509,11 @@ function MarketplaceContent() {
       <div className="filter-panel" role="search">
         <label className="search-field"><span aria-hidden="true">⌕</span><input aria-label="Search open tasks" type="search" placeholder="Search tasks, area, or category" value={search} onChange={(event) => { setSearch(event.target.value); updateMarketplaceFilter("q", event.target.value); }} /></label>
         <label className="select-field"><span>Category</span><select value={category} onChange={(event) => { setCategory(event.target.value); updateMarketplaceFilter("category", event.target.value); }}><option value="">All categories</option>{categories.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-        <a className="button button--primary" href="/agents">Post a task</a>
+        <a className="button button--primary" href="/agents">Hire a human</a>
       </div>
       <div className="marketplace-results-heading"><span>{loadingTasks ? <LoadingState label="Loading task count…" variant="inline" /> : `${rows.length} ${rows.length === 1 ? "task" : "tasks"}`}</span><span>Recently posted</span></div>
       {loadingTasks ? <LoadingState label="Loading open tasks…" variant="list" /> : loadError ? <Callout title="Task listings unavailable" tone="danger">{loadError}</Callout> : rows.length === 0
-        ? <EmptyState title="No open tasks right now">New requests appear here after an agent posts them. Check back later or set up an agent from your owner workspace.</EmptyState>
+        ? <EmptyState title="No open tasks right now">New requests appear here after a task owner posts them. Check back later or set up a hiring profile from your owner workspace.</EmptyState>
         : <div className="agent-grid">{rows.map((task) => <article key={task.id} className="agent-row task-row">
           <div className="agent-row__art"><span className="task-emblem" aria-hidden="true">{task.category.slice(0, 1).toUpperCase()}</span></div>
           <div className="agent-row__content"><h3>{task.title}</h3><p className="agent-row__description">Open the task page for the full brief and application requirements.</p><div className="agent-row__meta"><span>{task.category}</span><span>{task.area}</span><span>Due {dateLabel(task.deadline)}</span></div></div>
@@ -464,7 +523,7 @@ function MarketplaceContent() {
     </section>
     <section className="section-block experience-shortcuts">
       <a className="detail-section" href="/work"><p className="eyebrow">For workers</p><h3>Applications, delivery, and earnings</h3><p>Manage your verified profile and see confirmed payment history.</p></a>
-      <a className="detail-section" href="/agents"><p className="eyebrow">For Agents</p><h3>Post tasks and choose a worker</h3><p>Set budgets, review applicants, and oversee each escrow step.</p></a>
+      <a className="detail-section" href="/agents"><p className="eyebrow">For task owners</p><h3>Hire a human for a task</h3><p>Sign in, link a payment wallet, set spending limits, and oversee each escrow step.</p></a>
     </section>
   </main>;
 }
@@ -643,6 +702,7 @@ function TaskContent({ taskId }: { taskId: string }) {
   const feeAcknowledgementNeeded = !!task?.settlement?.feeChanged && !task.settlement.feeAcknowledgedAt;
   const paymentAccountReady = !!task?.settlement?.scoreReady || scorePrepared;
   const deliveryReady = deliveryPrerequisitesReady(task?.settlement, paymentAccountReady);
+  const ownerLifecycleStep = ownerTaskLifecycleStep(task?.state ?? "");
 
   async function acknowledgeFundedFee() {
     const result = await controller.run(() => controller.call("acknowledge_funding_fee", { taskId }));
@@ -677,6 +737,7 @@ function TaskContent({ taskId }: { taskId: string }) {
         {worker && task.state === "FUNDED" && feeAcknowledgementNeeded && <Callout title="Review and accept the finalized fee before work" tone="warning">The actual funded fee differs from the owner's estimate. If you decline, do not start work, upload evidence, or submit delivery. The owner may request and sign an on-chain refund after the task deadline while no delivery has been submitted. There is no instant refund or automatic payout. <button className="button button--small" disabled={controller.busy} onClick={() => void acknowledgeFundedFee()}>Accept actual fee and continue</button></Callout>}
         {worker && task.state === "FUNDED" && feeSnapshotReady && task.settlement?.feeChanged && task.settlement.feeAcknowledgedAt && <p className="muted-copy">You accepted the finalized fee on {dateLabel(task.settlement.feeAcknowledgedAt)}.</p>}
         <div className="next-action"><p className="eyebrow">Next action</p><strong>{task.nextAction}</strong>{task.deliveredAt && <span>Delivery confirmed by escrow: {dateLabel(task.deliveredAt)}.</span>}{task.reviewEndsAt && <span>Worker claim becomes available after {dateLabel(task.reviewEndsAt)}. Time passing does not submit the claim transaction.</span>}</div>
+        {owner && <section className="owner-task-lifecycle" aria-label="Owner task lifecycle"><p className="eyebrow">Owner task path</p><h3>{task.state === "CANCELLED" ? "Task closed before funding" : task.state === "REFUNDED" ? "Task closed after refund" : "Follow the task through payment"}</h3><ol className="owner-task-lifecycle__steps">{["Posted · applicants", "Choose one", "Approve and fund", "Await delivery", "Review and pay"].map((label, index) => { const step = index + 1; const done = ownerLifecycleStep != null && step < ownerLifecycleStep; const current = ownerLifecycleStep === step; return <li key={label} data-state={done ? "done" : undefined} aria-current={current ? "step" : undefined}>{label}</li>; })}</ol><p className="owner-task-lifecycle__note">{task.state === "CANCELLED" || task.state === "REFUNDED" ? "No payment is pending for this closed task. Open tasks that continue show the current owner action above." : task.state === "REJECTED" ? "The rejection settlement is complete; the task has reached its final payment stage." : task.state === "PAID" ? "Payment is confirmed. You can now leave a rating for the worker." : "The review window is measured from confirmed worker delivery. Posting and worker selection do not start that window."}</p></section>}
         {controller.browser?.session.worker && task.state === "OPEN" && task.canApply && !task.applicationStatus && <div className="application-form"><label>Application note (optional)<textarea value={applicationNote} maxLength={500} onChange={(event) => setApplicationNote(event.currentTarget.value)} placeholder="A short note about your relevant experience" /></label><button className="button button--primary" disabled={controller.busy} onClick={() => void apply()}>Apply for this task</button></div>}
         {task.state === "OPEN" && task.applicationStatus && <p className="muted-copy">Application status: <strong>{task.applicationStatus}</strong></p>}
         {task.state === "OPEN" && !controller.browser?.session.worker && <p className="muted-copy">To apply, create or recover a worker profile from <a href="/work">My work</a>.</p>}
@@ -697,10 +758,10 @@ function TaskContent({ taskId }: { taskId: string }) {
       </form>}
       {worker && task.state === "FUNDED" && task.evidence && <button className="button button--primary" disabled={!deliveryReady || controller.busy || task.legacyReadOnly} onClick={() => void execute({ build: "build_submission", confirm: "confirm_submission", signer: "worker", prompt: `Submit the evidence commitment for “${task.title}” to the mainnet escrow? The report and image stay private.` })}>Sign delivery commitment</button>}
 
-      {owner && fundingAction === "request" && <button className="button button--primary" disabled={controller.busy || !state?.session.owner?.walletVerified || task.legacyReadOnly} onClick={() => void controller.run(() => controller.call("owner_request_hire", { agentId: task.agentId, taskId: task.id })).then(() => void refreshAll())}>Request or renew exact funding approval</button>}
+      {owner && fundingAction === "request" && <button className="button button--primary" disabled={controller.busy || !state?.session.owner?.walletVerified || task.legacyReadOnly} onClick={() => void controller.run(() => controller.call("owner_request_hire", { agentId: task.agentId, taskId: task.id })).then(() => void refreshAll())}>Request funding approval</button>}
       {owner && (task.state === "ASSIGNED" || task.state === "FUNDING") && hireApproval && <OwnerApproval approval={hireApproval} taskTitle={task.title} busy={controller.busy} consent={consentChecked} onConsent={setConsentChecked} onAuthorize={() => void wallet.beginApproval(hireApproval.id)} />}
       {owner && canRefreshFundingApproval(task.state, hireApproval?.status) && <button className="button button--small" disabled={controller.busy || !state?.session.owner?.walletVerified || task.legacyReadOnly} onClick={() => void refreshFundingApproval()}>Refresh funding quote and approval</button>}
-      {owner && fundingAction === "sign" && pending?.confirmAction !== "confirm_funding" && <button className="button button--primary" disabled={controller.busy || !state?.session.owner?.walletVerified || !consentChecked || task.legacyReadOnly} onClick={() => void execute({ build: "fund_task", confirm: "confirm_funding", signer: "owner", prompt: `Fund ${formatAtomic(task.amountAtomic, task.asset)} for ${task.worker?.displayName ?? "the selected worker"} on mainnet Sui? The amount, worker, and payout wallet are fixed in this transaction.` })}>Sign frozen mainnet funding transaction</button>}
+      {owner && fundingAction === "sign" && pending?.confirmAction !== "confirm_funding" && <button className="button button--primary" disabled={controller.busy || !state?.session.owner?.walletVerified || !consentChecked || task.legacyReadOnly} onClick={() => void execute({ build: "fund_task", confirm: "confirm_funding", signer: "owner", prompt: `Fund ${formatAtomic(task.amountAtomic, task.asset)} for ${task.worker?.displayName ?? "the selected worker"} on mainnet Sui? The amount, worker, and payout wallet are fixed in this transaction.` })}>Fund escrow</button>}
       {owner && canCancelUnfundedTask(task.state) && <button className="button" disabled={controller.busy || task.legacyReadOnly} onClick={() => {
         if (!window.confirm(`Cancel “${task.title}”? This is available only before funding and the server will verify that no escrow transaction is active.`)) return;
         void controller.run(() => controller.call("cancel_task", { taskId: task.id })).then(() => void refreshAll());
@@ -708,12 +769,12 @@ function TaskContent({ taskId }: { taskId: string }) {
 
       {(task.state === "SUBMITTED" || task.state === "REVIEW") && owner && <div className="detail-actions"><button className="button button--primary" disabled={controller.busy || !task.evidence} onClick={() => void controller.run(() => controller.call("owner_review_submission", { agentId: task.agentId, taskId, decision: "accept" })).then(() => void refreshAll())}>Accept delivery</button><button className="button" disabled={controller.busy} onClick={() => void controller.run(() => controller.call("owner_review_submission", { agentId: task.agentId, taskId, decision: "request_review", note: "Please review the delivery against the posted checklist." })).then(() => void refreshAll())}>Request off-chain review</button></div>}
       {(task.state === "SUBMITTED" || task.state === "REVIEW") && owner && <p className="muted-copy">If you disagree with the delivery, request an off-chain review. That process does not trigger an on-chain rejection or platform arbitration.</p>}
-      {owner && task.reviewDecision === "ACCEPT" && (task.state === "SUBMITTED" || task.state === "REVIEW") && <button className="button button--primary" disabled={controller.busy || !state?.session.owner?.walletVerified} onClick={() => void controller.run(() => controller.call("owner_request_release", { agentId: task.agentId, taskId })).then(() => void refreshAll())}>Request fresh owner approval for release</button>}
+      {owner && task.reviewDecision === "ACCEPT" && (task.state === "SUBMITTED" || task.state === "REVIEW") && <button className="button button--primary" disabled={controller.busy || !state?.session.owner?.walletVerified} onClick={() => void controller.run(() => controller.call("owner_request_release", { agentId: task.agentId, taskId })).then(() => void refreshAll())}>Request payment approval</button>}
       {owner && releaseApproval && <OwnerApproval approval={releaseApproval} taskTitle={task.title} busy={controller.busy} consent={consentChecked} onConsent={setConsentChecked} onAuthorize={() => void wallet.beginApproval(releaseApproval.id)} />}
-      {owner && releaseApproval && ["APPROVED", "ISSUED"].includes(releaseApproval.status) && pending?.confirmAction !== "confirm_release" && <button className="button button--primary" disabled={controller.busy || !state?.session.owner?.walletVerified || !consentChecked} onClick={() => void execute({ build: "build_release", confirm: "confirm_release", signer: "owner", prompt: `Release the agreed payment for “${task.title}” to ${task.worker?.displayName ?? "the selected worker"}?` })}>Sign frozen release transaction</button>}
-      {owner && task.reviewDecision === "REQUEST_REVIEW" && (task.state === "SUBMITTED" || task.state === "REVIEW") && !rejectApproval && <button className="button" disabled={controller.busy || !state?.session.owner?.walletVerified} onClick={() => void controller.run(() => controller.call("owner_request_reject", { agentId: task.agentId, taskId })).then(() => void refreshAll())}>Request fresh approval for on-chain rejection</button>}
+      {owner && releaseApproval && ["APPROVED", "ISSUED"].includes(releaseApproval.status) && pending?.confirmAction !== "confirm_release" && <button className="button button--primary" disabled={controller.busy || !state?.session.owner?.walletVerified || !consentChecked} onClick={() => void execute({ build: "build_release", confirm: "confirm_release", signer: "owner", prompt: `Release the agreed payment for “${task.title}” to ${task.worker?.displayName ?? "the selected worker"}?` })}>Approve payment</button>}
+      {owner && task.reviewDecision === "REQUEST_REVIEW" && (task.state === "SUBMITTED" || task.state === "REVIEW") && !rejectApproval && <button className="button" disabled={controller.busy || !state?.session.owner?.walletVerified} onClick={() => void controller.run(() => controller.call("owner_request_reject", { agentId: task.agentId, taskId })).then(() => void refreshAll())}>Request rejection approval</button>}
       {owner && rejectApproval && <OwnerApproval approval={rejectApproval} taskTitle={task.title} busy={controller.busy} consent={consentChecked} onConsent={setConsentChecked} onAuthorize={() => void wallet.beginApproval(rejectApproval.id)} />}
-      {owner && rejectApproval && ["APPROVED", "ISSUED"].includes(rejectApproval.status) && pending?.confirmAction !== "confirm_reject" && <button className="button button--primary" disabled={controller.busy || !state?.session.owner?.walletVerified || !consentChecked} onClick={() => void execute({ build: "build_reject", confirm: "confirm_reject", signer: "owner", prompt: `Apply the agreed ${workerSharePercent(task.terms.rejectSplitBps)}% worker share on “${task.title}” through the mainnet escrow rejection transaction? The actual payout is subject to protocol fees.` })}>Sign frozen rejection transaction</button>}
+      {owner && rejectApproval && ["APPROVED", "ISSUED"].includes(rejectApproval.status) && pending?.confirmAction !== "confirm_reject" && <button className="button button--primary" disabled={controller.busy || !state?.session.owner?.walletVerified || !consentChecked} onClick={() => void execute({ build: "build_reject", confirm: "confirm_reject", signer: "owner", prompt: `Apply the agreed ${workerSharePercent(task.terms.rejectSplitBps)}% worker share on “${task.title}” through the mainnet escrow rejection transaction? The actual payout is subject to protocol fees.` })}>Approve rejection settlement</button>}
       {task.state === "FUNDED" && owner && deadlinePassed && <><Callout title="Undelivered escrow refund" tone="warning">After the delivery deadline, the owner can start a refund while the task remains unsubmitted. The refund requires its own owner-signed transaction; account preparation, if needed, uses network gas and does not move escrow.</Callout><button className="button" disabled={controller.busy || !state?.session.owner?.walletVerified || task.legacyReadOnly} onClick={() => void execute({ build: "build_refund", confirm: "confirm_refund", signer: "owner", prompt: `Sign the separate mainnet escrow refund for ${formatAtomic(task.amountAtomic, task.asset)} to the owner? This is available only after the deadline while the task remains unsubmitted.` })}>Start deadline refund</button></>}
       {worker && (task.state === "SUBMITTED" || task.state === "REVIEW") && reviewWindowEnded && <button className="button button--primary" disabled={controller.busy || task.legacyReadOnly} onClick={() => void execute({ build: "build_timeout_claim", confirm: "confirm_timeout_claim", signer: "worker", prompt: `Submit the worker claim for “${task.title}” after the review window? Time has passed, but payment happens only after this transaction confirms.` })}>Submit worker review-window claim</button>}
       {owner && (task.state === "PAID" || task.state === "REJECTED") && !task.rating && <RatingPanel busy={controller.busy} stars={stars} setStars={setStars} onSubmit={async () => {
@@ -927,7 +988,13 @@ function AgentsContent() {
   const [applicantLoading, setApplicantLoading] = useState<Record<string, boolean>>({});
   const [applicantErrors, setApplicantErrors] = useState<Record<string, string>>({});
   const [createdKey, setCreatedKey] = useState("");
+  const [copyKeyNotice, setCopyKeyNotice] = useState("");
   const [agentId, setAgentId] = useState("");
+  const [showProfileForm, setShowProfileForm] = useState(false);
+  const [taskDraft, setTaskDraft] = useState<HiringTaskDraft>(EMPTY_HIRING_TASK_DRAFT);
+  const [draftOwnerId, setDraftOwnerId] = useState<string | null>(null);
+  const [createdTaskId, setCreatedTaskId] = useState("");
+  const [createdTaskTitle, setCreatedTaskTitle] = useState("");
 
   const ownerId = controller.browser?.session.owner?.id;
   const loadDashboard = useCallback(async () => {
@@ -938,7 +1005,8 @@ function AgentsContent() {
     try {
       const result = await readExperience<{ dashboard: OwnerDashboard }>("agents");
       setDashboard(result.dashboard);
-      setAgentId((current) => current || result.dashboard.agents[0]?.id || "");
+      setAgentId((current) => result.dashboard.agents.some((agent) => agent.id === current) ? current : result.dashboard.agents[0]?.id || "");
+      setShowProfileForm(result.dashboard.agents.length === 0);
     } catch (cause) {
       setDashboardError(cause instanceof Error ? cause.message : "Owner workspace is unavailable.");
     } finally {
@@ -947,6 +1015,22 @@ function AgentsContent() {
   }, [ownerId]);
 
   useEffect(() => { void loadDashboard(); }, [loadDashboard]);
+
+  useEffect(() => {
+    setTaskDraft(ownerId ? readHiringTaskDraft(ownerId) : { ...EMPTY_HIRING_TASK_DRAFT });
+    setDraftOwnerId(ownerId ?? null);
+  }, [ownerId]);
+
+  useEffect(() => {
+    if (!ownerId || draftOwnerId !== ownerId || typeof window === "undefined") return;
+    try {
+      const hasDraft = Object.entries(taskDraft).some(([key, value]) => value !== EMPTY_HIRING_TASK_DRAFT[key as keyof HiringTaskDraft]);
+      if (hasDraft) window.sessionStorage.setItem(`${TASK_DRAFT_STORAGE_KEY}:${ownerId}`, JSON.stringify(taskDraft));
+      else window.sessionStorage.removeItem(`${TASK_DRAFT_STORAGE_KEY}:${ownerId}`);
+    } catch {
+      // The controlled form remains usable when browser storage is blocked.
+    }
+  }, [taskDraft, draftOwnerId, ownerId]);
 
   async function createAgent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -957,10 +1041,12 @@ function AgentsContent() {
         categories: String(form.get("categories") ?? "").split(",").map((item) => item.trim().toLowerCase().replaceAll(" ", "-")).filter(Boolean),
         maxTaskAtomic: parseAtomic(String(form.get("maxTask") ?? ""), MAINNET_USDC),
         totalBudgetAtomic: parseAtomic(String(form.get("totalBudget") ?? ""), MAINNET_USDC),
-      }));
+      }), false);
       if (result) {
         setCreatedKey(result.apiKey);
+        setCopyKeyNotice("");
         setAgentId(result.agentId);
+        setShowProfileForm(false);
         await loadDashboard();
       }
     } catch (cause) {
@@ -970,26 +1056,46 @@ function AgentsContent() {
 
   async function createTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!agentId) { controller.setError("Create or choose an active agent first."); return; }
-    const form = new FormData(event.currentTarget);
+    const selectedAgentId = agentId || dashboard?.agents[0]?.id || "";
+    if (!selectedAgentId) { controller.setError("Create or choose a hiring profile first."); return; }
     try {
-      const deadline = new Date(String(form.get("deadline") ?? ""));
+      const deadline = new Date(taskDraft.deadline);
       if (Number.isNaN(deadline.getTime())) throw new Error("Set a valid deadline.");
-      const terms = taskTermsFromForm(String(form.get("reviewWindowMinutes") ?? "5"), String(form.get("rejectSplitPercent") ?? "50"));
-      const result = await controller.run(() => controller.call("owner_create_task", {
-        agentId,
-        title: String(form.get("title") ?? "").trim(),
-        brief: String(form.get("brief") ?? "").trim(),
-        category: String(form.get("category") ?? ""),
-        area: String(form.get("area") ?? "").trim(),
-        rubric: String(form.get("checklist") ?? "").split("\n").map((item) => item.trim()).filter(Boolean),
-        amountAtomic: parseAtomic(String(form.get("amount") ?? ""), MAINNET_USDC),
+      const terms = taskTermsFromForm(taskDraft.reviewWindowMinutes, taskDraft.rejectSplitPercent);
+      const result = await controller.run<{ id?: string; taskId?: string }>(() => controller.call("owner_create_task", {
+        agentId: selectedAgentId,
+        title: taskDraft.title.trim(),
+        brief: taskDraft.brief.trim(),
+        category: taskDraft.category,
+        area: taskDraft.area.trim(),
+        rubric: taskDraft.checklist.split("\n").map((item) => item.trim()).filter(Boolean),
+        amountAtomic: parseAtomic(taskDraft.amount, MAINNET_USDC),
         deadline: deadline.toISOString(),
         ...terms,
-      }));
-      if (result) await loadDashboard();
+      }), false);
+      if (result) {
+        setCreatedTaskId(result.id ?? result.taskId ?? "");
+        setCreatedTaskTitle(taskDraft.title.trim());
+        setTaskDraft({ ...EMPTY_HIRING_TASK_DRAFT });
+        await loadDashboard();
+      }
     } catch (cause) {
       controller.setError(cause instanceof Error ? cause.message : "Task could not be created.");
+    }
+  }
+
+  function updateTaskDraft(field: keyof HiringTaskDraft, value: string) {
+    setTaskDraft((current) => ({ ...current, [field]: value }));
+  }
+
+  async function copyCreatedKey() {
+    if (!createdKey) return;
+    try {
+      if (!navigator.clipboard) throw new Error("Clipboard access is unavailable.");
+      await navigator.clipboard.writeText(createdKey);
+      setCopyKeyNotice("Copied. Keep this key in your secret manager; it will not be shown again.");
+    } catch {
+      setCopyKeyNotice("Copy was unavailable. Select the key above and save it in your secret manager before dismissing this message.");
     }
   }
 
@@ -1023,24 +1129,92 @@ function AgentsContent() {
   const activeAgent = agents.find((agent) => agent.id === agentId) ?? agents[0] ?? null;
   const dashboardPending = !!owner && (dashboardLoading || (!dashboard && !dashboardError));
   const sessionPending = !controller.browser && !controller.loadError;
+  const walletReady = !!owner?.walletVerified;
+  const profileReady = walletReady && !!dashboard && !dashboardError && agents.length > 0;
+  const currentStep = !owner ? 1 : !walletReady ? 2 : !profileReady ? 3 : 4;
   const queryTaskId = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("task") ?? "";
   useEffect(() => { if (queryTaskId && dashboard?.tasks.some((task) => task.id === queryTaskId)) void showApplicants(queryTaskId); }, [queryTaskId, dashboard?.tasks]);
 
   return <main className="page-shell">
-    <section className="directory-hero directory-hero--compact"><p className="eyebrow">Agent workspace</p><h1>Post work. <span>Choose a human.</span></h1><p>Agents set categories and spend limits; task owners review eligible applicants and select one before requesting funding approval.</p></section>
+    <section className="directory-hero directory-hero--compact"><p className="eyebrow">Owner workspace · hire a human</p><h1>Set up once. <span>Hire with clarity.</span></h1><p>Follow four steps to identify the task owner, connect the payment wallet, set a hiring profile, and post work for a human to complete.</p><small>Posting a task never moves USDC. Payment happens only after worker delivery and the owner’s approval or the supported review-window claim.</small></section>
     <Feedback error={controller.error || controller.loadError || dashboardError} notice={controller.notice} />
-    {sessionPending ? <section className="detail-section owner-login"><div><p className="eyebrow">Owner account</p><h2>Checking your session</h2><p>Sign in as an agent owner to create agent policies and post tasks. The account status is loading.</p><LoadingState label="Checking owner session…" variant="inline" /><div className="owner-login__actions"><button className="button button--primary" disabled>Continue with World</button><button className="button" disabled>Recover owner by wallet</button></div></div></section>
-      : !controller.browser ? null
-      : !owner ? <section className="detail-section owner-login"><div><p className="eyebrow">Owner account</p><h2>Sign in to manage agents</h2><p>World ID for Agents authenticates the owner. Escrow transactions still require a separately linked Slush or compatible wallet.</p></div><div className="owner-login__actions"><button className="button button--primary" disabled={controller.busy || !controller.browser.config.ownerAuthenticationConfigured} onClick={() => void wallet.beginOwnerLogin()}>{controller.browser.config.ownerAuthenticationConfigured ? "Continue with World" : "Owner sign-in unavailable"}</button><button className="button" disabled={controller.busy || !wallet.account} onClick={() => void wallet.verifyWallet("recover_owner")}>{wallet.account ? "Recover owner by wallet" : "Connect wallet to recover"}</button></div></section> : <>
-      <section className="detail-section owner-account"><div><p className="eyebrow">Signed-in owner</p><h2>Owner session active</h2><p>Owner wallet: {shortAddress(owner.walletAddress)} · {owner.walletVerified ? "linked" : "not linked"}</p></div><div className="detail-actions"><button className="button" disabled={controller.busy || !wallet.account} onClick={() => void wallet.verifyWallet("owner")}>{owner.walletVerified ? "Verify linked wallet" : wallet.account ? "Link connected wallet" : "Connect wallet to link"}</button></div></section>
-      <section className="section-block owner-columns">
-        <form className="creator-wizard" onSubmit={(event) => void createAgent(event)}><p className="eyebrow">Agent policy</p><h2>Create an agent</h2><label>Agent name<input name="name" required maxLength={80} placeholder="Field operations" /></label><label>Allowed categories, comma separated<input name="categories" required maxLength={500} placeholder="inspection, photography" /></label><div className="form-two"><label>Maximum task amount (USDC)<input name="maxTask" required inputMode="decimal" placeholder="2.00" /></label><label>Total budget (USDC)<input name="totalBudget" required inputMode="decimal" placeholder="25.00" /></label></div><small>Budget fields are policy limits in atomic USDC, not escrow deposits.</small><button className="button button--primary" disabled={controller.busy}>Create agent policy</button></form>
-        <form className="creator-wizard task-create-form" onSubmit={(event) => void createTask(event)}><p className="eyebrow">Task request</p><h2>Post a task</h2><label>Agent<select disabled={dashboardPending || !!dashboardError || agents.length === 0} value={activeAgent?.id ?? ""} onChange={(event) => setAgentId(event.currentTarget.value)}>{dashboardPending ? <option value="">Loading agent policies…</option> : dashboardError ? <option value="">Agent policies unavailable</option> : agents.length === 0 ? <option value="">Create an agent policy first</option> : agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name} · {formatAtomic(agent.availableAtomic, agent.asset)} available</option>)}</select></label>{!dashboardPending && !dashboardError && agents.length === 0 && <p>Create an agent policy first; tasks use its category and budget limits.</p>}{dashboardError && <p>Agent policies are unavailable right now.</p>}<label>Title<input name="title" required maxLength={120} placeholder="Photograph three public entrances" /></label><label>Task brief<textarea name="brief" required maxLength={4000} placeholder="Include task requirements. Keep precise private access details out of the public area field." /></label><div className="form-two"><label>Category<select name="category" required disabled={!activeAgent} defaultValue=""><option value="" disabled>Choose a permitted category</option>{(activeAgent?.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label>Public service area<input name="area" required maxLength={120} placeholder="District or town" /></label></div><label>Completion checklist<textarea name="checklist" required maxLength={2400} placeholder="One observable requirement per line" /></label><div className="form-two"><label>Gross amount (USDC)<input name="amount" required inputMode="decimal" placeholder="1.25" /></label><label>Deadline<input name="deadline" required type="datetime-local" /></label></div><div className="form-two"><label>Review window (minutes)<input name="reviewWindowMinutes" type="number" min={1} max={720} defaultValue={5} /></label><label>Worker share if rejected (%)<input name="rejectSplitPercent" type="number" min={0} max={100} defaultValue={50} /></label></div><small>On rejection, your percentage is the worker’s share before t2000 fees. ask2human converts it to the buyer-share basis used by t2000. Terms are frozen in the owner’s approval and funding transaction.</small><button className="button button--primary" disabled={controller.busy || dashboardPending || !!dashboardError || !activeAgent}>Post USDC task</button></form>
-      </section>
-      {createdKey && <Callout title="Copy the agent API key now" tone="warning"><p>This bearer key is shown once. Store it in your agent secret manager; it is not saved in the browser state.</p><pre>{createdKey}</pre><button className="button button--small" onClick={() => void navigator.clipboard.writeText(createdKey)}>Copy key</button><button className="button button--small" onClick={() => setCreatedKey("")}>Dismiss</button></Callout>}
-      <section className="section-block"><SectionHeading eyebrow="Budgets" title="Agent spend limits" description="Available equals total budget less reservations and confirmed spend." />{dashboardPending ? <LoadingState label="Loading agent budgets…" variant="list" /> : dashboardError ? <p className="muted-copy">Agent budgets are unavailable until the workspace can be loaded.</p> : agents.length === 0 ? <EmptyState title="No agent policies yet">Create the first agent above to define permitted categories and task limits.</EmptyState> : <div className="agent-summary-grid">{agents.map((agent) => <article key={agent.id}><strong>{agent.name}</strong><span>{agent.categories.join(", ")}</span><small>Available {formatAtomic(agent.availableAtomic, agent.asset)} · reserved {formatAtomic(agent.reservedAtomic, agent.asset)} · spent {formatAtomic(agent.spentAtomic, agent.asset)}</small><small>Total {formatAtomic(agent.totalBudgetAtomic, agent.asset)} · per-task cap {formatAtomic(agent.maxTaskAtomic, agent.asset)}</small></article>)}</div>}</section>
-      <section className="section-block"><SectionHeading eyebrow="Task administration" title="Applicants and active tasks" description="Open an applicant’s public profile before selection. Selection closes competing applications atomically." />{dashboardPending ? <LoadingState label="Loading active tasks…" variant="list" /> : dashboardError ? <p className="muted-copy">Tasks are unavailable until the workspace can be loaded.</p> : dashboard?.tasks.length ? <div className="experience-list">{dashboard.tasks.map((task) => <article className="experience-row experience-row--task" key={task.id}><div><strong>{task.title}</strong><small>{task.category} · {task.area} · {task.worker?.displayName ?? "No worker selected"}</small></div><StatusBadge value={task.state} tone={taskTone(task.state)} /><strong>{formatAtomic(task.amountAtomic, task.asset)}</strong><a className="button button--small" href={`/tasks/${task.id}`}>Task details</a>{task.state === "OPEN" && <button className="button button--small" onClick={() => void showApplicants(task.id)}>{selectedTask === task.id ? "Hide applicants" : "Review applicants"}</button>}{selectedTask === task.id && <ApplicantPanel taskId={task.id} list={applicantLists[task.id]} loading={applicantLoading[task.id]} error={applicantErrors[task.id]} busy={controller.busy} worldEnvironment={controller.browser?.config.worldIdentityEnvironment ?? null} onSelect={(workerId) => void selectWorker(task.id, workerId)} />}</article>)}</div> : dashboard && <EmptyState title="No tasks have been posted">Post a task above; its applications and escrow lifecycle will appear here.</EmptyState>}</section>
-    </>}
+    <section className="hiring-setup" aria-label="Hiring setup">
+      <McpQuickStart />
+      <ol className="hiring-progress" aria-label="Hiring setup progress">
+        {["Sign in", "Link payment wallet", "Set spending limits", "Post a task"].map((label, index) => {
+          const step = index + 1;
+          const completed = step < currentStep;
+          return <li key={label} className={completed ? "hiring-progress__item hiring-progress__item--complete" : step === currentStep ? "hiring-progress__item hiring-progress__item--current" : "hiring-progress__item"} aria-current={step === currentStep ? "step" : undefined}><span>{completed ? "✓" : step}</span><small>{label}</small></li>;
+        })}
+      </ol>
+      <ol className="hiring-steps">
+        <li className={`hiring-step ${currentStep === 1 ? "hiring-step--current" : owner ? "hiring-step--complete" : "hiring-step--locked"}`} aria-current={currentStep === 1 ? "step" : undefined}>
+          <div className="hiring-step__number">1</div>
+          <div className="hiring-step__body">
+            <p className="eyebrow">Step 1</p><h2>Sign in as the owner</h2>
+            <p>The owner identity is the person responsible for task instructions, worker selection, and payment approvals. World sign-in identifies that owner; it does not verify the worker and does not move funds.</p>
+            {sessionPending && <div className="hiring-step__status"><LoadingState label="Checking owner session…" variant="inline" /> Checking your session before showing completed steps.</div>}
+            {!sessionPending && !controller.browser && <div className="hiring-step__actions"><p>Setup status could not be loaded, so no step is marked complete.</p><button className="button" disabled={controller.busy} onClick={() => void controller.run(() => controller.refresh(), false)}>Retry setup status</button></div>}
+            {controller.browser && !owner && <div className="hiring-step__actions"><button className="button button--primary" disabled={controller.busy || !controller.browser.config.ownerAuthenticationConfigured} onClick={() => void wallet.beginOwnerLogin()}>{controller.browser.config.ownerAuthenticationConfigured ? "Continue with World" : "Owner sign-in unavailable"}</button><button className="button" disabled={controller.busy || !wallet.account} onClick={() => void wallet.verifyWallet("recover_owner")}>{wallet.account ? "Recover owner by wallet" : "Connect wallet to recover"}</button></div>}
+            {owner && <div className="hiring-step__status"><StatusBadge value="Owner identity signed in" tone="success" /><span>Owner wallet: {shortAddress(owner.walletAddress)}</span></div>}
+          </div>
+        </li>
+
+        <li className={`hiring-step ${!owner ? "hiring-step--locked" : currentStep === 2 ? "hiring-step--current" : walletReady ? "hiring-step--complete" : "hiring-step--locked"}`} aria-current={currentStep === 2 ? "step" : undefined}>
+          <div className="hiring-step__number">2</div>
+          <div className="hiring-step__body">
+            <p className="eyebrow">Step 2</p><h2>Link the payment wallet</h2>
+            {!owner ? <p>Finish owner sign-in first. The wallet is linked to that owner after a personal signature.</p> : <>
+              <p>Connect the Sui wallet that will approve funding, then sign a personal message to prove control. This signature only links the wallet; it does not make a deposit, start escrow, or charge USDC.</p>
+              {!walletReady && <div className="hiring-step__actions"><ConnectButton instance={dAppKit} /><button className="button button--primary" disabled={controller.busy || !wallet.account} onClick={() => void wallet.verifyWallet("owner")}>{wallet.account ? "Sign to link this wallet" : "Connect a wallet first"}</button></div>}
+              {walletReady && <div className="hiring-step__status"><StatusBadge value="Payment wallet linked" tone="success" /><span>{shortAddress(owner.walletAddress)} · personal signature verified</span><button className="button button--small" disabled={controller.busy || !wallet.account} onClick={() => void wallet.verifyWallet("owner")}>{wallet.account ? "Verify linked wallet" : "Connect linked wallet"}</button></div>}
+            </>}
+          </div>
+        </li>
+
+        <li className={`hiring-step ${!walletReady ? "hiring-step--locked" : currentStep === 3 ? "hiring-step--current" : profileReady ? "hiring-step--complete" : "hiring-step--locked"}`} aria-current={currentStep === 3 ? "step" : undefined}>
+          <div className="hiring-step__number">3</div>
+          <div className="hiring-step__body">
+            <p className="eyebrow">Step 3</p><h2>Set spending limits in a hiring profile</h2>
+            {!walletReady ? <p>Link the payment wallet first. This keeps the owner, budget policy, and later payment approvals tied to the same account.</p> : dashboardPending ? <div className="hiring-step__status"><LoadingState label="Loading hiring profiles…" variant="inline" /> Checking the owner dashboard; no profile is assumed complete.</div> : dashboardError ? <div className="hiring-step__actions"><p>Hiring profiles are unavailable, so this step is still pending.</p><button className="button" disabled={controller.busy} onClick={() => void loadDashboard()}>Retry profiles</button></div> : <>
+              <p>A hiring profile stores allowed categories and USDC limits for posted work. It also issues one API key for your own AI or automation to call ask2human. Creating a profile does not launch an AI agent and does not post a task.</p>
+              <p className="hiring-step__optional">Optional integration: <a href="/connect">Connect your own AI (MCP)</a> after saving the one-time key.</p>
+              {agents.length > 0 && <div className="hiring-profile-picker"><label>Profile for the next task<select value={activeAgent?.id ?? ""} onChange={(event) => setAgentId(event.currentTarget.value)}>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name} · {formatAtomic(agent.availableAtomic, agent.asset)} available</option>)}</select></label><div className="hiring-step__status"><StatusBadge value="Spending profile ready" tone="success" /><span>{agents.length} profile{agents.length === 1 ? "" : "s"} available</span></div></div>}
+              {agents.length > 0 && !showProfileForm && <button className="button" onClick={() => setShowProfileForm(true)}>Create another hiring profile</button>}
+              {(showProfileForm || agents.length === 0) && <form className="creator-wizard hiring-profile-form" onSubmit={(event) => void createAgent(event)}><p className="eyebrow">{agents.length === 0 ? "First profile" : "Another profile"}</p><h3>{agents.length === 0 ? "Create your hiring profile" : "Create another hiring profile"}</h3><label>Profile name<input name="name" required maxLength={80} placeholder="Field operations" /></label><label>Allowed task categories, comma separated<input name="categories" required maxLength={500} placeholder="inspection, photography" /></label><div className="form-two"><label>Maximum task amount (USDC)<input name="maxTask" required inputMode="decimal" placeholder="2.00" /></label><label>Total spending limit (USDC)<input name="totalBudget" required inputMode="decimal" placeholder="25.00" /></label></div><small>These are policy limits. They reserve room for future tasks but do not deposit or move USDC.</small><button className="button button--primary" disabled={controller.busy}>{agents.length === 0 ? "Create hiring profile" : "Save another profile"}</button></form>}
+              {agents.length === 0 && <p className="hiring-step__hint">Create at least one profile before posting a task. You can add another profile later for a different budget or category set.</p>}
+            </>}
+          </div>
+        </li>
+
+        <li className={`hiring-step ${!profileReady ? "hiring-step--locked" : currentStep === 4 ? "hiring-step--current" : "hiring-step--complete"}`} aria-current={currentStep === 4 ? "step" : undefined}>
+          <div className="hiring-step__number">4</div>
+          <div className="hiring-step__body">
+            <p className="eyebrow">Step 4</p><h2>Post the task</h2>
+            {!profileReady ? <p>Complete the earlier steps and load a hiring profile before entering task details.</p> : <>
+              <p>Posting publishes the brief and reserves the amount against the selected profile’s limits. It does not charge your wallet or fund escrow. The path after posting is applicants → choose one → approve and fund → worker delivers → review and pay.</p>
+              <form className="creator-wizard task-create-form hiring-task-form" onSubmit={(event) => void createTask(event)}>
+                <label>Hiring profile<select value={activeAgent?.id ?? ""} onChange={(event) => setAgentId(event.currentTarget.value)}>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name} · {formatAtomic(agent.availableAtomic, agent.asset)} available</option>)}</select></label>
+                <label>Title<input required maxLength={120} value={taskDraft.title} onChange={(event) => updateTaskDraft("title", event.currentTarget.value)} placeholder="Photograph three public entrances" /></label>
+                <label>Task brief<textarea required maxLength={4000} value={taskDraft.brief} onChange={(event) => updateTaskDraft("brief", event.currentTarget.value)} placeholder="Include task requirements. Keep precise private access details out of the public area field." /></label>
+                <div className="form-two"><label>Category<select required disabled={!activeAgent} value={taskDraft.category} onChange={(event) => updateTaskDraft("category", event.currentTarget.value)}><option value="" disabled>Choose a permitted category</option>{(activeAgent?.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label>Public service area<input required maxLength={120} value={taskDraft.area} onChange={(event) => updateTaskDraft("area", event.currentTarget.value)} placeholder="District or town" /></label></div>
+                <label>Completion checklist<textarea required maxLength={2400} value={taskDraft.checklist} onChange={(event) => updateTaskDraft("checklist", event.currentTarget.value)} placeholder="One observable requirement per line" /></label>
+                <div className="form-two"><label>Gross amount (USDC)<input required inputMode="decimal" value={taskDraft.amount} onChange={(event) => updateTaskDraft("amount", event.currentTarget.value)} placeholder="1.25" /></label><label>Deadline<input required type="datetime-local" value={taskDraft.deadline} onChange={(event) => updateTaskDraft("deadline", event.currentTarget.value)} /></label></div>
+                <div className="form-two"><label>Review window after delivery (minutes)<input required type="number" min={1} max={720} value={taskDraft.reviewWindowMinutes} onChange={(event) => updateTaskDraft("reviewWindowMinutes", event.currentTarget.value)} /></label><label>Worker share if rejected (%)<input required type="number" min={0} max={100} value={taskDraft.rejectSplitPercent} onChange={(event) => updateTaskDraft("rejectSplitPercent", event.currentTarget.value)} /></label></div>
+                <small>The default review window is 5 minutes. It starts only after the worker delivers; posting never starts it. On rejection, this worker share is before t2000 fees, and the terms are frozen in the owner’s approval and funding transaction.</small>
+                <button className="button button--primary" disabled={controller.busy || dashboardPending || !!dashboardError || !activeAgent}>Post task</button>
+              </form>
+            </>}
+          </div>
+        </li>
+      </ol>
+
+      {createdKey && <Callout title="Save this API key now" tone="warning"><p>This bearer key is shown once and stays only in this page’s memory. It gives your own AI or automation API access to the hiring profile; it does not launch an AI agent. Save it in your secret manager before dismissing it.</p><pre aria-label="One-time hiring profile API key">{createdKey}</pre><div className="detail-actions"><button type="button" className="button button--small" onClick={() => void copyCreatedKey()}>Copy key</button><button type="button" className="button button--small" onClick={() => setCreatedKey("")}>Dismiss</button></div>{copyKeyNotice && <small className="hiring-key-notice" role="status">{copyKeyNotice}</small>}<p className="hiring-step__optional"><a href="/connect">Connect your own AI (MCP)</a> using this key.</p></Callout>}
+      {createdTaskTitle && <Callout title="Task posted" tone="success"><p><strong>{createdTaskTitle}</strong> is now available for applicants. Next: choose one applicant, approve and fund the exact terms, wait for delivery, then review and pay.</p>{createdTaskId ? <a className="button button--small" href={`/tasks/${createdTaskId}`}>Open task stages</a> : <a className="button button--small" href="#active-tasks">Open active tasks</a>}</Callout>}
+
+      {owner && <section className="section-block"><SectionHeading eyebrow="Saved profiles" title="Hiring profile limits" description="Available equals total limit less reservations and confirmed spend. Select a profile above to post new work; existing profiles remain available for API access and task history." />{dashboardPending ? <LoadingState label="Loading hiring profile limits…" variant="list" /> : dashboardError ? <p className="muted-copy">Hiring profile limits are unavailable until the owner dashboard can be loaded.</p> : agents.length === 0 ? <EmptyState title="No hiring profiles yet">Complete step 3 to define the categories and limits a task can use.</EmptyState> : <div className="agent-summary-grid">{agents.map((agent) => <article key={agent.id}><strong>{agent.name}</strong><span>{agent.categories.join(", ")}</span><small>Available {formatAtomic(agent.availableAtomic, agent.asset)} · reserved {formatAtomic(agent.reservedAtomic, agent.asset)} · spent {formatAtomic(agent.spentAtomic, agent.asset)}</small><small>Total {formatAtomic(agent.totalBudgetAtomic, agent.asset)} · per-task cap {formatAtomic(agent.maxTaskAtomic, agent.asset)}</small></article>)}</div>}</section>}
+      {owner && <section className="section-block" id="active-tasks"><SectionHeading eyebrow="Active tasks" title="Follow each task to payment" description="Applicants → choose one → approve and fund → worker delivers → review and pay. Open any task for its exact current action and immutable payment terms." />{dashboardPending ? <LoadingState label="Loading active tasks…" variant="list" /> : dashboardError ? <p className="muted-copy">Active tasks are unavailable until the owner dashboard can be loaded.</p> : dashboard?.tasks.length ? <div className="experience-list">{dashboard.tasks.map((task) => <article className="experience-row experience-row--task" key={task.id}><div><strong>{task.title}</strong><small>{task.category} · {task.area} · {task.worker?.displayName ?? "Waiting for applicants"} · Next: {ownerTaskStageLabel(task.state)}</small></div><StatusBadge value={task.state} tone={taskTone(task.state)} /><strong>{formatAtomic(task.amountAtomic, task.asset)}</strong><a className="button button--small" href={`/tasks/${task.id}`}>Open task stages</a>{task.state === "OPEN" && <button className="button button--small" onClick={() => void showApplicants(task.id)}>{selectedTask === task.id ? "Hide applicants" : "Review applicants"}</button>}{selectedTask === task.id && <ApplicantPanel taskId={task.id} list={applicantLists[task.id]} loading={applicantLoading[task.id]} error={applicantErrors[task.id]} busy={controller.busy} worldEnvironment={controller.browser?.config.worldIdentityEnvironment ?? null} onSelect={(workerId) => void selectWorker(task.id, workerId)} />}</article>)}</div> : dashboard && <EmptyState title="No active tasks yet">Post a task above; applicants, worker delivery, review, and confirmed payment will appear here.</EmptyState>}</section>}
+    </section>
   </main>;
 }
 

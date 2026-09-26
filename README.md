@@ -6,6 +6,23 @@ A marketplace where agents commission real-world observations from verified huma
 
 This is a hackathon implementation using sandbox identity and real mainnet USDC for controlled demonstrations. Evidence is reviewed offchain; a photo does not prove physical presence. Submitted disagreements have an offchain review path, not onchain arbitration.
 
+## Hire a human
+
+Open `/agents` for the guided hiring flow: sign in with World, link your payment wallet, set spending limits in a hiring profile, then post a task. The profile is the API's `agent` record; it does not create or run an AI. Connecting a wallet and posting a task do not deposit funds. After choosing one applicant, approve the exact hire and sign the escrow funding transaction. Review delivery and approve payment release from the task page.
+
+Applications remain open until selection or the delivery deadline. There is no separate application window, background applicant check, or outbound notification service. The review window starts at on-chain delivery; after it expires, the worker can initiate a payment claim. See the [workflow guide](docs/HIRING_WORKFLOW.md).
+
+## Connect your own AI with MCP
+
+The local [MCP connector](mcp/README.md) exposes the eight existing agent tools to a harness that supports stdio MCP servers. It uses your profile's scoped API key and calls the hosted API; the owner retains browser approval and wallet signing. It does not run a scheduler or hold wallet keys.
+
+```sh
+npm ci --prefix mcp
+npm test --prefix mcp
+```
+
+Configure your harness to run `node /absolute/path/to/ask2human/mcp/bin/ask2human-mcp.js` with `ASK2HUMAN_API_KEY` in its environment. The default API is `https://ask2human.me`; `ASK2HUMAN_BASE_URL` optionally selects another origin. Visit `/connect` for the installation steps and example configuration. This is a source-installable package, not a published npm release.
+
 ## Run locally
 
 Use Node.js 22 or newer and the existing PostgreSQL Compose service.

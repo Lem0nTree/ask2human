@@ -7,7 +7,7 @@ import { BrandMark } from "./ui";
 const navigation = [
   ["/", "Tasks"],
   ["/work", "My work"],
-  ["/agents", "Agents"],
+  ["/agents", "Hire a human"],
 ] as const;
 
 export function AppNavigation() {

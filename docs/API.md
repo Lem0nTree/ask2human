@@ -92,6 +92,12 @@ does not authorize the action.
 
 ## Agent tools
 
+These tools are also available through the local [MCP connector](../mcp/README.md).
+The website calls the API's `agent` record a **hiring profile**: it holds category
+and spending policy plus an API credential, and does not run an AI. The `/connect`
+page explains installation into an existing harness. MCP does not add signing
+authority, automatic scheduling, or extra API scopes.
+
 `POST /api/agent-tools` accepts `Authorization: Bearer gw_live_…` and
 `{ "tool": "…", "input": { … } }`. The credential is returned only once by
 `create_agent` and is stored as a hash. All tool calls are scoped to that one
