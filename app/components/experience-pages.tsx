@@ -8,6 +8,7 @@ import type { IDKitResult } from "@worldcoin/idkit";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { AppNavigation } from "./app-navigation";
 import { McpQuickStart } from "./mcp-quick-start";
+import { WorkIntro, WorkSetup, WorkStep } from "./work-setup";
 import { Callout, EmptyState, LoadingState, SectionHeading, StatusBadge } from "./ui";
 import { dAppKit } from "../lib/client/dapp-kit";
 import {
@@ -985,18 +986,80 @@ function WorkContent() {
   const dashboardPending = !!worker && (dashboardLoading || (!dashboard && !dashboardError));
   const sessionPending = !controller.browser && !controller.loadError;
 
+  const walletReady = !!worker?.walletVerified;
+  const identityReady = walletReady && !!worker?.worldVerified;
+  const eligible = identityReady && worker?.status === "VERIFIED";
+  const currentStep = !controller.browser ? null : !worker ? 1 : !walletReady ? 2 : !identityReady ? 3 : 4;
+  const connectedToPayout = !!wallet.account && wallet.account.address === worker?.walletAddress;
+  const worldEnvironment = controller.browser?.config.worldIdentityEnvironment ?? null;
+
   return <main className="page-shell">
-    <section className="directory-hero directory-hero--compact"><p className="eyebrow">Worker workspace</p><h1>Applications. <span>Delivery. Earnings.</span></h1><p>See your selected work and count earnings from confirmed settlement receipts, not your wallet balance or a capped task feed.</p></section>
+    <WorkIntro />
     <Feedback error={controller.error || controller.loadError || dashboardError} notice={controller.notice} />
-    {sessionPending ? <section className="detail-section workspace-session"><p className="eyebrow">Worker profile</p><h2>Checking your account</h2><p>Your profile and account-specific actions will appear here when the session check completes.</p><LoadingState label="Checking worker session…" variant="inline" /></section>
-      : !controller.browser ? null
-      : !worker ? <section className="section-block workspace-grid"><form className="creator-wizard" onSubmit={(event) => void createWorker(event)}><p className="eyebrow">Worker profile</p><h2>Create or recover your profile</h2><label>Display name<input name="displayName" required maxLength={80} placeholder="Name shown to task owners" /></label><label>Primary category<input name="category" required maxLength={60} pattern="[a-zA-Z0-9][a-zA-Z0-9 _-]*" placeholder="inspection" /></label><label>Service area<input name="area" required maxLength={100} placeholder="District or region" /></label><label>Skills, separated by commas<input name="skills" maxLength={400} placeholder="photo documentation, field checks" /></label><button className="button button--primary" disabled={controller.busy}>Create worker profile</button></form><div className="detail-section"><p className="eyebrow">Returning worker</p><h2>Recover an existing profile</h2><p>Connect the wallet previously linked to your worker account that passed the configured identity check, then sign a new account recovery challenge.</p><button className="button" disabled={controller.busy || !wallet.account} onClick={() => void wallet.verifyWallet("recover_worker")}>{wallet.account ? "Recover with connected wallet" : "Connect wallet to recover"}</button></div></section>
-      : <>
-        <section className="detail-section worker-profile-summary"><div><p className="eyebrow">Your profile</p><h2>{worker.displayName}</h2><p>{worker.category} · {worker.area}</p></div><StatusBadge value={worker.status === "VERIFIED" ? "Eligible" : worker.status} tone={worker.status === "VERIFIED" ? "success" : "warning"} /><a className="button" href={`/workers/${worker.id}`}>Public profile</a></section>
-        <section className="section-block workspace-grid">
-          <div className="detail-section"><p className="eyebrow">Wallet and identity</p><h3>Worker eligibility</h3><p>Link the payout wallet you control with Slush or another Sui wallet. {worldEnvironmentDisclosure(controller.browser?.config.worldIdentityEnvironment ?? null)} checks this worker account for uniqueness; it does not verify delivery quality.</p><dl className="profile-facts"><div><dt>Payout wallet</dt><dd>{shortAddress(worker.walletAddress)}</dd></div><div><dt>World check</dt><dd>{worldCheckStatus(controller.browser?.config.worldIdentityEnvironment ?? null, worker.worldVerified)}</dd></div></dl><div className="detail-actions"><button className="button" disabled={controller.busy || !wallet.account} onClick={() => void wallet.verifyWallet("worker")}>{worker.walletVerified ? "Verify linked wallet" : wallet.account ? "Link connected wallet" : "Connect wallet to link"}</button><button className="button button--primary" disabled={controller.busy || !worker.walletVerified || !controller.browser?.config.workerVerificationConfigured || worker.worldVerified} onClick={() => void startIDKit()}>{worker.worldVerified ? "Identity check complete" : controller.browser?.config.worldIdentityEnvironment && controller.browser.config.worldIdentityEnvironment !== "production" ? `Start ${controller.browser.config.worldIdentityEnvironment} identity check` : "Start World identity check"}</button></div><small>This check establishes uniqueness only. It does not rate completed work or verify delivery evidence.</small></div>
-          <div className="detail-section"><p className="eyebrow">Current account</p><h3>Connected wallet</h3><p>{wallet.account ? shortAddress(wallet.account.address) : "No wallet connected"}</p><p>Use the same linked address to submit delivery and receive settlement. If you cancel a wallet request, the frozen transaction remains ready for retry.</p></div>
-        </section>
+    <WorkSetup currentStep={currentStep}>
+      <WorkStep step={1} currentStep={currentStep}>
+        <p>Your profile tells task owners what you can help with and where you work. Already registered? Recover your existing profile with its linked wallet.</p>
+        {sessionPending && <div className="hiring-step__status"><LoadingState label="Checking worker session…" variant="inline" /> Your completed steps will appear after your account loads.</div>}
+        {!sessionPending && !controller.browser && <div className="hiring-step__actions"><p>Your setup status could not be loaded.</p><button className="button" disabled={controller.busy} onClick={() => void controller.run(() => controller.refresh(), false)}>Retry setup status</button></div>}
+        {controller.browser && !worker && <>
+          <form className="creator-wizard work-profile-form" onSubmit={(event) => void createWorker(event)}>
+            <div className="form-two">
+              <label>Display name<input name="displayName" required maxLength={80} autoComplete="nickname" placeholder="Name shown to task owners" /></label>
+              <label>Primary category<input name="category" required maxLength={60} pattern="[a-zA-Z0-9][a-zA-Z0-9 _-]*" placeholder="inspection" /></label>
+            </div>
+            <label>Service area<input name="area" required maxLength={100} placeholder="District or region" /></label>
+            <label>Skills, separated by commas<input name="skills" maxLength={400} placeholder="photo documentation, field checks" /></label>
+            <button className="button button--primary" disabled={controller.busy}>Create worker profile</button>
+          </form>
+          <details className="work-recovery">
+            <summary>Returning worker? Recover your profile</summary>
+            <p>Connect the wallet previously linked to your worker account that passed the configured identity check, then sign a fresh recovery message.</p>
+            <div className="hiring-step__actions"><ConnectButton instance={dAppKit} /><button className="button" disabled={controller.busy || !wallet.account} onClick={() => void wallet.verifyWallet("recover_worker")}>{wallet.account ? "Recover with connected wallet" : "Connect wallet to recover"}</button></div>
+          </details>
+        </>}
+        {worker && <div className="hiring-step__status"><StatusBadge value="Profile created" tone="success" /><span>{worker.displayName} · {worker.category} · {worker.area}</span><a className="button button--small" href={`/workers/${worker.id}`}>Public profile</a></div>}
+      </WorkStep>
+
+      <WorkStep step={2} currentStep={currentStep}>
+        {!worker ? <p>Create or recover your profile first, then link the Sui wallet that will receive your payments.</p> : <>
+          <p>Connect Slush or another Sui wallet, then sign a personal message to prove you control it. Linking your wallet does not transfer funds. Use this same address to submit delivery and receive settlement.</p>
+          <div className="hiring-step__actions"><ConnectButton instance={dAppKit} /><button className={`button ${walletReady ? "button--small" : "button--primary"}`} disabled={controller.busy || !wallet.account} onClick={() => void wallet.verifyWallet("worker")}>{walletReady ? "Verify linked wallet" : wallet.account ? "Sign to link this wallet" : "Connect a wallet first"}</button></div>
+          {walletReady && <div className="hiring-step__status"><StatusBadge value="Payout wallet linked" tone="success" /><span>{shortAddress(worker.walletAddress)} · personal signature verified</span></div>}
+          <p className="hiring-step__hint">{!wallet.account ? "No wallet connected. Connect your payout wallet when you are ready to sign." : walletReady && !connectedToPayout ? `Connected: ${shortAddress(wallet.account.address)}. Switch to your linked payout wallet before signing task actions.` : `Connected: ${shortAddress(wallet.account.address)}`}</p>
+        </>}
+      </WorkStep>
+
+      <WorkStep step={3} currentStep={currentStep}>
+        {!walletReady || !worker ? <p>Link your payout wallet first. The identity check is attached to your worker account.</p> : <>
+          <p>{worldEnvironmentDisclosure(worldEnvironment)} checks your worker account for uniqueness. It does not rate your skills or verify the quality of your delivery.</p>
+          {worker.worldVerified ? <div className="hiring-step__status"><StatusBadge value={worldCheckStatus(worldEnvironment, true)} tone="success" /></div> : <>
+            <div className="hiring-step__actions"><button className="button button--primary" disabled={controller.busy || !controller.browser?.config.workerVerificationConfigured} onClick={() => void startIDKit()}>{!controller.browser?.config.workerVerificationConfigured ? "Identity check unavailable" : worldEnvironment && worldEnvironment !== "production" ? `Start ${worldEnvironment} identity check` : "Start World identity check"}</button></div>
+            {!controller.browser?.config.workerVerificationConfigured && <p className="hiring-step__hint">Identity verification is currently unavailable. Your profile and linked wallet are saved; return here when verification is available.</p>}
+          </>}
+        </>}
+      </WorkStep>
+
+      <WorkStep step={4} currentStep={currentStep}>
+        {!identityReady ? <p>Complete your profile, wallet, and identity steps before applying. You can browse open listings at any time.</p> : !eligible ? <p>Your setup checks are complete, but your account is currently {worker?.status.toLowerCase().replaceAll("_", " ")}. Applying requires an eligible worker account.</p> : <><p>You are ready to apply. Choose a task that matches your skills and area, then read its checklist, reward, and deadline before applying.</p><div className="hiring-step__status"><StatusBadge value="Ready to apply" tone="success" /></div></>}
+        <div className="hiring-step__actions"><a className="button button--primary" href="/">Browse open tasks</a>{worker && <a className="button" href="#my-tasks">View my applications</a>}</div>
+        <ol className="work-task-guide" aria-label="From application to payment">
+          <li><strong>Apply and wait for selection</strong><p>The owner chooses a worker. Open the task to follow your application and its next action.</p></li>
+          <li><strong>Confirm funding, then deliver</strong><p>Wait for confirmed escrow funding before starting. Follow the checklist, add your report and evidence, and confirm delivery with your linked wallet.</p></li>
+          <li><strong>Follow review and payment</strong><p>The owner reviews your delivery. If the review window ends without a decision, open the task for the claim action. Earnings update when payment is confirmed.</p></li>
+        </ol>
+      </WorkStep>
+    </WorkSetup>
+    {worker && <div className="work-dashboard">
+      {dashboardError && <div className="hiring-step__actions"><p>Your saved work could not be loaded.</p><button className="button" disabled={dashboardLoading} onClick={() => void loadDashboard()}>Retry work history</button></div>}
+          <section className="section-block" id="my-tasks">
+            <SectionHeading eyebrow="Applications and work" title="Tasks you applied for or completed" description="Open each detail page for the exact delivery checklist, current escrow state and next action." />
+            {dashboardPending ? <LoadingState label="Loading applications and work…" variant="list" />
+              : dashboardError ? <p className="muted-copy">Applications are unavailable until work history can be loaded.</p>
+              : dashboard ? dashboard.tasks.length === 0
+                ? <EmptyState title="No applications or assigned work yet">Browse open requests and apply after completing the worker identity and wallet checks.</EmptyState>
+                : <div className="experience-list">{dashboard.tasks.map((task) => <article className="experience-row" key={task.id}><div><strong>{task.title}</strong><small>{task.category} · {task.area} · Due {dateLabel(task.deadline)}</small></div><StatusBadge value={task.state === "OPEN" ? task.applicationStatus ?? "OPEN" : task.state} tone={taskTone(task.state)} /><strong>{formatAtomic(task.amountAtomic, task.asset)}</strong><a className="button button--small" href={`/tasks/${task.id}`}>Open task</a></article>)}</div>
+                : null}
+          </section>
           <section className="section-block">
             <SectionHeading eyebrow="Earnings" title="Confirmed payment history" description="Mainnet USDC net earnings include only confirmed seller receipts. Pending escrow is shown separately." />
             {dashboardPending ? (
@@ -1023,15 +1086,6 @@ function WorkContent() {
             ) : null}
           </section>
           <section className="section-block">
-            <SectionHeading eyebrow="Applications and work" title="Tasks you applied for or completed" description="Open each detail page for the exact delivery checklist, current escrow state and next action." />
-            {dashboardPending ? <LoadingState label="Loading applications and work…" variant="list" />
-              : dashboardError ? <p className="muted-copy">Applications are unavailable until work history can be loaded.</p>
-              : dashboard ? dashboard.tasks.length === 0
-                ? <EmptyState title="No applications or assigned work yet">Browse open requests and apply after completing the worker identity and wallet checks.</EmptyState>
-                : <div className="experience-list">{dashboard.tasks.map((task) => <article className="experience-row" key={task.id}><div><strong>{task.title}</strong><small>{task.category} · {task.area} · Due {dateLabel(task.deadline)}</small></div><StatusBadge value={task.state === "OPEN" ? task.applicationStatus ?? "OPEN" : task.state} tone={taskTone(task.state)} /><strong>{formatAtomic(task.amountAtomic, task.asset)}</strong><a className="button button--small" href={`/tasks/${task.id}`}>Open task</a></article>)}</div>
-                : null}
-          </section>
-          <section className="section-block">
             <SectionHeading eyebrow="Receipts" title="Settlement ledger" description="Actual fee and net amounts appear after receipt confirmation. Pending rows are not counted as earned." />
             {dashboardPending ? <LoadingState label="Loading settlement receipts…" variant="list" />
               : dashboardError ? <p className="muted-copy">Receipts are unavailable until work history can be loaded.</p>
@@ -1040,7 +1094,7 @@ function WorkContent() {
                 : <div className="experience-list">{dashboard.payments.map((payment, index) => <article className="experience-row experience-row--receipt" key={`${payment.taskId}-${index}`}><div><strong>{payment.title}</strong><small>{payment.asset.network} · {payment.settledAt ? dateLabel(payment.settledAt) : `Settlement ${payment.settlementStatus.toLowerCase()}`}</small></div><StatusBadge value={payment.state} tone={taskTone(payment.state)} /><span>Gross {formatAtomic(payment.grossAtomic, payment.asset)}</span><span>Fee {payment.feeAtomic == null ? "Pending" : formatAtomic(payment.feeAtomic, payment.asset)}</span><strong>Net {payment.netAtomic == null ? "Pending" : formatAtomic(payment.netAtomic, payment.asset)}</strong>{payment.digest && <a href={`/tasks/${payment.taskId}`} className="button button--small">View receipt</a>}</article>)}</div>
                 : null}
           </section>
-      </>}
+      </div>}
     {idKitStart && <><Callout title={`${worldEnvironmentDisclosure(idKitStart.request.environment)}`} tone="info">This environment checks that the worker account is unique. It does not certify work quality or prove that evidence is authentic.</Callout><IDKitRequestWidget open onOpenChange={(open) => { if (!open) setIdKitStart(null); }} app_id={idKitStart.request.app_id} action={idKitStart.request.action} rp_context={idKitStart.request.rp_context} environment={idKitStart.request.environment} allow_legacy_proofs={false} preset={proofOfHuman({ signal: idKitStart.request.signal })} handleVerify={completeIDKit} onSuccess={() => setIdKitStart(null)} onError={() => controller.setError("World could not complete this identity check. Start a fresh request and try again.")} /></>}
   </main>;
 }

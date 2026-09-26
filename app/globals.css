@@ -132,6 +132,18 @@ summary { cursor: pointer; padding: .8rem 0; min-height: 2.75rem; font-size: .84
 .callout--danger { border-color: #614047; background: #2b2023; }
 .callout--success { border-color: #3c5848; background: #1d2822; }
 .hiring-setup { max-width: 980px; margin: 6px auto 0; }
+.work-dashboard { max-width: 980px; margin: 0 auto; }
+.work-setup .work-profile-form { margin-top: 18px; padding: 0; border: 0; background: none; }
+.work-setup .hiring-step__body a.button { text-decoration: none; }
+.work-setup .hiring-step__body a.button--primary { color: #211c25; }
+.work-recovery { margin-top: 20px; padding-top: 16px; border-top: 1px solid #35333e; }
+.work-recovery summary { cursor: pointer; color: #dec8ed; font-size: .8rem; }
+.work-recovery p { max-width: 65ch; color: #aaa7b4; font-size: .77rem; line-height: 1.65; }
+.work-task-guide { display: grid; gap: 15px; margin: 22px 0 0; padding: 20px 0 0 20px; border-top: 1px solid #35333e; color: #c6b2d6; font-size: .78rem; }
+.work-task-guide li { padding-left: 5px; }
+.work-task-guide strong { color: #e0d9e6; font-weight: 550; }
+.work-task-guide p { max-width: 70ch; margin: 5px 0 0; color: #aaa7b4; font-size: .75rem; line-height: 1.65; }
+.work-dashboard #my-tasks { scroll-margin-top: 90px; }
 .mcp-quick-start { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; padding: 16px 18px; margin-bottom: 20px; border: 1px solid #35333e; border-radius: 10px; background: #1a1a21; }
 .mcp-quick-start > div { flex: 1 1 280px; min-width: 0; }
 .mcp-quick-start h2 { margin: 0; font-size: .9rem; }

@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useState, type ChangeEvent, type ReactNode } from "react";
 import { BrandMark, LoadingState } from "./ui";
+import { WorkIntro, WorkSetup, WorkStep } from "./work-setup";
 
 function ExperienceFallbackFrame({ children }: { children: ReactNode }) {
   return <>
@@ -79,15 +80,13 @@ function TaskFallback() {
 
 function WorkFallback() {
   return <ExperienceFallbackFrame><main className="page-shell">
-    <section className="directory-hero directory-hero--compact">
-      <p className="eyebrow">Worker workspace</p>
-      <h1>Applications. <span>Delivery. Earnings.</span></h1>
-      <p>See your selected work and count earnings from confirmed settlement receipts, not your wallet balance or a capped task feed.</p>
-    </section>
-    <section className="section-block">
-      <div className="section-heading"><div><p className="eyebrow">Worker profile</p><h2>Your work, in one place</h2><p className="section-heading__description">Your profile, applications, delivery steps, and confirmed payments appear in this workspace.</p></div></div>
-      <a className="button button--primary" href="/">Browse open tasks</a>
-    </section>
+    <WorkIntro />
+    <WorkSetup currentStep={null}>
+      <WorkStep step={1} currentStep={null}><div className="hiring-step__status"><LoadingState label="Loading your worker workspace…" variant="inline" /> Your completed steps will appear after your account loads.</div></WorkStep>
+      <WorkStep step={2} currentStep={null} />
+      <WorkStep step={3} currentStep={null} />
+      <WorkStep step={4} currentStep={null} />
+    </WorkSetup>
   </main></ExperienceFallbackFrame>;
 }
 
