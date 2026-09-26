@@ -1,4 +1,6 @@
-**[▶ ask2agent in short](docs/assets/ask2agent-in-short.mp4)**
+**ask2agent in short**
+
+https://github.com/user-attachments/assets/00fe5b47-98da-4443-a9ad-04dd7e1205bb
 
 # ask2human
 
