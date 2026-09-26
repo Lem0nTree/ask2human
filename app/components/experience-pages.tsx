@@ -159,6 +159,22 @@ function ownerTaskStatusLabel(state: string): string {
   return state || "Status unavailable";
 }
 
+function taskStatusLabel(state: string): string {
+  const labels: Record<string, string> = {
+    OPEN: "Applications open",
+    ASSIGNED: "Worker selected",
+    FUNDING: "Funding pending",
+    FUNDED: "Ready for delivery",
+    SUBMITTED: "Awaiting review",
+    REVIEW: "Under review",
+    PAID: "Paid",
+    REJECTED: "Rejected · settled",
+    CANCELLED: "Cancelled",
+    REFUNDED: "Refunded",
+  };
+  return labels[state] ?? state;
+}
+
 function profileAuthorizationLabel(progress: ProfileAuthorizationProgress | null): string {
   if (!progress) return "";
   if (progress.stage === "challenge") return "Preparing the profile authorization message…";
@@ -172,10 +188,10 @@ function profileNeedsAuthorization(agent: HiringAgent | null | undefined): boole
 
 function ownerTaskLifecycleStep(state: string): number | null {
   if (state === "OPEN") return 1;
-  if (state === "ASSIGNED" || state === "FUNDING") return 3;
-  if (state === "FUNDED") return 4;
-  if (state === "SUBMITTED" || state === "REVIEW") return 5;
-  if (state === "PAID" || state === "REJECTED") return 6;
+  if (state === "ASSIGNED" || state === "FUNDING") return 2;
+  if (state === "FUNDED") return 3;
+  if (state === "SUBMITTED" || state === "REVIEW") return 4;
+  if (state === "PAID" || state === "REJECTED") return 5;
   return null;
 }
 
@@ -785,26 +801,47 @@ function TaskContent({ taskId }: { taskId: string }) {
     }
   }
 
-  return <main className="page-shell">
+  return <main className="page-shell task-page">
     <a className="task-back-link" href="/">← Back to open tasks</a>
     <Feedback error={controller.error || loadError || controller.loadError} notice={controller.notice} />
     {!task && taskLoading ? <section className="detail-section task-detail task-detail--loading"><p className="eyebrow">Task details</p><h1>Task details</h1><p>Task requirements, reward, and current status are loading.</p><LoadingState label="Loading task details…" variant="detail" /></section> : !task ? <EmptyState title="Task unavailable">This task may have been removed, or its details are not available.</EmptyState> : <>
       <section className="detail-section task-detail">
-        <div className="detail-head"><div><p className="eyebrow">Task details</p><h1>{task.title}</h1></div><StatusBadge value={task.state} tone={taskTone(task.state)} /></div>
-        <div className="task-facts"><div><span>Category</span><strong>{task.category}</strong></div><div><span>Area</span><strong>{task.area}</strong></div><div><span>Task amount</span><strong>{formatAtomic(task.amountAtomic, task.asset)}</strong></div><div><span>Deadline</span><strong>{dateLabel(task.deadline)}</strong></div><div><span>Worker</span><strong>{task.worker ? <a href={task.worker.profilePath}>{task.worker.displayName}</a> : "Not selected"}</strong></div><div><span>Escrow state</span><strong>{task.settlement?.status ?? "Not funded"}</strong></div></div>
+        <div className="detail-head">
+          <div><p className="eyebrow">Task details</p><h1>{task.title}</h1></div>
+          <StatusBadge value={taskStatusLabel(task.state)} tone={taskTone(task.state)} />
+        </div>
+        <div className="task-reward"><span>Task reward</span><strong>{formatAtomic(task.amountAtomic, task.asset)}</strong><small>Total before fees</small></div>
+        <dl className="task-summary-facts">
+          <div><dt>Category</dt><dd>{task.category}</dd></div>
+          <div><dt>Location</dt><dd>{task.area}</dd></div>
+          <div><dt>Deadline</dt><dd><time dateTime={task.deadline}>{dateLabel(task.deadline)}</time></dd></div>
+          <div><dt>Worker</dt><dd>{task.worker ? <a href={task.worker.profilePath}>{task.worker.displayName} ↗</a> : "Awaiting selection"}</dd></div>
+        </dl>
+        <div className="next-action"><p className="eyebrow">Next action</p><strong>{task.nextAction}</strong>{task.deliveredAt && <span>Delivery confirmed by escrow: {dateLabel(task.deliveredAt)}.</span>}{task.reviewEndsAt && <span>Worker claim becomes available after {dateLabel(task.reviewEndsAt)}. Time passing does not submit the claim transaction.</span>}</div>
         {task.legacyReadOnly && <Callout title="Legacy SUI testnet record" tone="warning">This historical task is read-only. New applications and payments use mainnet USDC.</Callout>}
-        {task.brief ? <p className="task-detail__brief">{task.brief}</p> : <Callout title="Full task brief is private" tone="info">A verified, wallet-linked worker can read the full brief for an open task before applying. Owners and the selected worker can read it throughout the task.</Callout>}
+        {task.brief ? <div className="task-brief"><h2>Task brief</h2><p className="task-detail__brief">{task.brief}</p></div> : <Callout title="Full task brief is private" tone="info">A verified, wallet-linked worker can read the full brief for an open task before applying. Owners and the selected worker can read it throughout the task.</Callout>}
         {task.checklist.length > 0 && <div className="rubric-panel"><strong>Delivery checklist</strong><ul>{task.checklist.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul></div>}
         {task.quote && <div className="quote-panel"><strong>Current owner quote</strong><span>Gross {formatAtomic(task.quote.grossAtomic, task.asset)}</span><span>Estimated fee {task.quote.feeAtomic == null ? "Not available" : formatAtomic(task.quote.feeAtomic, task.asset)}</span><span>Estimated worker net {task.quote.netAtomic == null ? "Not available" : formatAtomic(task.quote.netAtomic, task.asset)}</span><small>Fee is an estimate until the funded job’s fee snapshot is verified.</small></div>}
         {task.settlement?.fundingFeeBps != null && <div className="quote-panel"><strong>Finalized funding fee</strong><span>Owner quote fee {task.settlement.feeQuoteAtomic == null ? "Not available" : formatAtomic(task.settlement.feeQuoteAtomic, task.asset)}{task.settlement.feeQuoteBps == null ? "" : ` · ${task.settlement.feeQuoteBps / 100}%`}</span><span>Actual funded fee {task.settlement.fundingFeeAtomic == null ? "Not available" : formatAtomic(task.settlement.fundingFeeAtomic, task.asset)} · {task.settlement.fundingFeeBps / 100}%</span><span>Net if fully released {task.settlement.fundingNetAtomic == null ? "Not available" : formatAtomic(task.settlement.fundingNetAtomic, task.asset)}</span><small>This estimate uses the full task amount; a later on-chain rejection uses the agreed split and its final fee. Final settlement amounts appear after receipt confirmation.</small></div>}
         {worker && task.state === "FUNDED" && feeAcknowledgementNeeded && <Callout title="Review and accept the finalized fee before work" tone="warning">The actual funded fee differs from the owner's estimate. If you decline, do not start work, upload evidence, or submit delivery. The owner may request and sign an on-chain refund after the task deadline while no delivery has been submitted. There is no instant refund or automatic payout. <button className="button button--small" disabled={controller.busy} onClick={() => void acknowledgeFundedFee()}>Accept actual fee and continue</button></Callout>}
         {worker && task.state === "FUNDED" && feeSnapshotReady && task.settlement?.feeChanged && task.settlement.feeAcknowledgedAt && <p className="muted-copy">You accepted the finalized fee on {dateLabel(task.settlement.feeAcknowledgedAt)}.</p>}
-        <div className="next-action"><p className="eyebrow">Next action</p><strong>{task.nextAction}</strong>{task.deliveredAt && <span>Delivery confirmed by escrow: {dateLabel(task.deliveredAt)}.</span>}{task.reviewEndsAt && <span>Worker claim becomes available after {dateLabel(task.reviewEndsAt)}. Time passing does not submit the claim transaction.</span>}</div>
-        {owner && <section className="owner-task-lifecycle" aria-label="Owner task lifecycle"><p className="eyebrow">Owner task path</p><h3>{task.state === "CANCELLED" ? "Task closed before funding" : task.state === "REFUNDED" ? "Task closed after refund" : "Follow the task through payment"}</h3><ol className="owner-task-lifecycle__steps">{["Posted · applicants", "Choose one", "Approve and fund", "Await delivery", "Review and pay"].map((label, index) => { const step = index + 1; const done = ownerLifecycleStep != null && step < ownerLifecycleStep; const current = ownerLifecycleStep === step; return <li key={label} data-state={done ? "done" : undefined} aria-current={current ? "step" : undefined}>{label}</li>; })}</ol><p className="owner-task-lifecycle__note">{task.state === "CANCELLED" || task.state === "REFUNDED" ? "No payment is pending for this closed task. Open tasks that continue show the current owner action above." : task.state === "REJECTED" ? "The rejection settlement is complete; the task has reached its final payment stage." : task.state === "PAID" ? "Payment is confirmed. You can now leave a rating for the worker." : "The review window is measured from confirmed worker delivery. Posting and worker selection do not start that window."}</p></section>}
+
+        {owner && <section className="owner-task-lifecycle" aria-label="Owner task lifecycle"><p className="eyebrow">Owner task path</p><h3>{task.state === "CANCELLED" ? "Task closed before funding" : task.state === "REFUNDED" ? "Task closed after refund" : "Follow the task through payment"}</h3>{ownerLifecycleStep != null && <ol className="owner-task-lifecycle__steps">{["Review applicants", "Approve and fund", "Await delivery", "Review and pay"].map((label, index) => { const step = index + 1; const done = ownerLifecycleStep != null && step < ownerLifecycleStep; const current = ownerLifecycleStep === step; return <li key={label} data-state={done ? "done" : undefined} aria-current={current ? "step" : undefined}><i aria-hidden="true" /><span>{label}<small>{current ? "Current step" : done ? "Complete" : "Upcoming"}</small></span></li>; })}</ol>}<p className="owner-task-lifecycle__note">{task.state === "CANCELLED" || task.state === "REFUNDED" ? "No payment is pending for this closed task. Open tasks that continue show the current owner action above." : task.state === "REJECTED" ? "The rejection settlement is complete; the task has reached its final payment stage." : task.state === "PAID" ? "Payment is confirmed. You can now leave a rating for the worker." : "The review window is measured from confirmed worker delivery. Posting and worker selection do not start that window."}</p></section>}
         {controller.browser?.session.worker && task.state === "OPEN" && task.canApply && !task.applicationStatus && <div className="application-form"><label>Application note (optional)<textarea value={applicationNote} maxLength={500} onChange={(event) => setApplicationNote(event.currentTarget.value)} placeholder="A short note about your relevant experience" /></label><button className="button button--primary" disabled={controller.busy} onClick={() => void apply()}>Apply for this task</button></div>}
         {task.state === "OPEN" && task.applicationStatus && <p className="muted-copy">Application status: <strong>{task.applicationStatus}</strong></p>}
-        {task.state === "OPEN" && !controller.browser?.session.worker && <p className="muted-copy">To apply, create or recover a worker profile from <a href="/work">My work</a>.</p>}
+        {task.state === "OPEN" && !task.isOwner && !controller.browser?.session.worker && <p className="muted-copy">To apply, create or recover a worker profile from <a href="/work">My work</a>.</p>}
         {task.isOwner && task.state === "OPEN" && <a className="button" href={`/agents?task=${task.id}`}>Review applicants</a>}
+      </section>
+
+      <section className="task-timeline" aria-labelledby="task-timeline-heading">
+        <div className="task-timeline__heading"><h2 id="task-timeline-heading">Task timeline</h2><span>Activity history</span></div>
+        {task.timeline.length > 0 ? <ol className="task-timeline__events">
+          {task.timeline.map((event, index) => <li key={`${event.state}-${event.at}-${index}`} data-latest={index === task.timeline.length - 1 ? "true" : undefined}>
+            <i className="task-timeline__dot" aria-hidden="true" />
+            <div className="task-timeline__event"><span>{event.label}</span>{index === task.timeline.length - 1 && <small>Latest</small>}</div>
+            {event.at ? <time dateTime={event.at}>{dateLabel(event.at)}</time> : <span className="task-timeline__date-missing">Time unavailable</span>}
+          </li>)}
+        </ol> : <p className="muted-copy">No activity recorded yet.</p>}
       </section>
 
       {task.evidence && <section className="evidence-panel evidence-panel--detail"><div><p className="eyebrow">Private delivery evidence</p><strong>{task.evidence.mediaType} · {(task.evidence.byteLength / 1024).toFixed(0)} KiB</strong><small>Uploaded {dateLabel(task.evidence.uploadedAt)} · SHA-256 <code>{task.evidence.sha256}</code></small><p>{task.evidence.report}</p></div>{evidenceUrl ? <a className="button" href={evidenceUrl} target="_blank" rel="noreferrer">Open private image ↗</a> : (owner || worker) && <button className="button" disabled={controller.busy} onClick={() => void loadEvidenceLink()}>Load short-lived private image link</button>}</section>}
@@ -860,7 +897,7 @@ function TaskContent({ taskId }: { taskId: string }) {
       </Callout>}
 
       {task.state !== "OPEN" && task.state !== "PAID" && task.state !== "REFUNDED" && task.state !== "CANCELLED" && <p className="refund-copy">Terms: {task.terms.reviewWindowMs / 60_000} minute review window · {workerSharePercent(task.terms.rejectSplitBps)}% of gross goes to the worker on an on-chain rejection, before actual fees. Submitted disagreements use off-chain review; there is no platform arbitration.</p>}
-      <section className="activity-panel"><p className="eyebrow">Task timeline</p>{task.timeline.map((event, index) => <div className="activity-row" key={`${event.state}-${index}`}><span><i />{event.label}</span><time>{dateLabel(event.at)}</time></div>)}</section>
+
     </>}
   </main>;
 }
