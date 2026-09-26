@@ -1,4 +1,4 @@
-"""Render the README banners from the shipped brand logo and product screenshots.
+"""Render the README banners using the shipped brand logo.
 
 Requires Pillow: python -m pip install Pillow
 Run from any directory: python scripts/render-readme-banners.py
@@ -6,7 +6,6 @@ Run from any directory: python scripts/render-readme-banners.py
 from __future__ import annotations
 
 from pathlib import Path
-import math
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
@@ -87,45 +86,33 @@ def save(im, name):
     print(dest.relative_to(ROOT), dest.stat().st_size)
 
 def hero():
-    im = base(620, 1210, 273)
+    im = base(400, 1390, 130)
+    logo(im, 88, 83, 570)
     d = ImageDraw.Draw(im)
-    logo(im, 92, 66, 395)
-    text(d, (94, 203), "AI agents hire people", 55, TEXT, True)
-    text(d, (94, 279), "for offline tasks.", 61, LAV, True)
-    text(d, (96, 395), "Post tasks. Review work.", 26, MUTED)
-    text(d, (96, 432), "Pay workers in USDC.", 26, MUTED)
-    x = 96
-    for label in ("WORLD ID", "SUI MAINNET", "API + MCP"):
-        x += pill(d, x, 524, label) + 12
-    market = screenshot("marketplace", (155, 34, 1200, 695))
-    framed_shot(im, market, (845, 94, 680, 425))
-    d = ImageDraw.Draw(im)
-    rounded(d, (1143, 453, 1505, 546), (35, 33, 42), 16, outline=(100, 82, 115))
-    d.ellipse((1164, 481, 1180, 497), fill=GREEN)
-    text(d, (1195, 469), "Sui escrow", 24, TEXT, True)
-    text(d, (1195, 505), "funded before work starts", 17, MUTED)
+    text(d, (92, 260), "World ID · USDC on Sui", 28, MUTED)
+    text(d, (800, 92), "AI agents hire humans.", 48, TEXT, True)
+    text(d, (800, 162), "For real-world tasks.", 48, TEXT, True)
+    text(d, (804, 266), "ask2human.me", 28, LAV)
     save(im, "readme-hero.png")
 
 def tour():
-    im = base(590, 764, 158)
+    im = base(340, 1450, 100)
     d = ImageDraw.Draw(im)
-    text(d, (82, 49), "How a task gets done", 49, TEXT, True)
-    text(d, (84, 120), "Owner posts. Worker applies and delivers. Owner signs payment.", 23, MUTED)
     items = [
-        ("hire-a-human", (165, 75, 1130, 618), "01  OWNER SETUP", "Set budget and task terms"),
-        ("worker-onboarding", (160, 70, 1120, 610), "02  WORKER APPLIES", "Link wallet; complete Selfie Check"),
-        ("completed-task", (103, 80, 1170, 650), "03  TASK PAID", "See payment and review"),
+        ("01", "Post a task", ["Agent sets the brief", "and reward."]),
+        ("02", "Choose a worker", ["People apply.", "The agent selects one."]),
+        ("03", "Fund escrow", ["Owner approves", "and signs funding."]),
+        ("04", "Deliver + pay", ["Worker sends proof.", "Owner signs payment."]),
     ]
-    for i, (name, crop, label, caption) in enumerate(items):
-        x = 82 + i*488
-        rounded(d, (x, 187, x+458, 548), SURFACE, 21, outline=(58, 54, 67))
-        framed_shot(im, screenshot(name, crop), (x+14, 201, 430, 242), 13)
-        d = ImageDraw.Draw(im)
-        text(d, (x+20, 461), label, 19, LAV, True)
-        text(d, (x+20, 497), caption, 19, TEXT)
-        if i<2:
-            rounded(d, (x+448, 331, x+486, 369), (94, 71, 112), 19)
-            text(d, (x+460, 337), "›", 25, TEXT, True)
+    for i, (number, label, lines) in enumerate(items):
+        x = 64 + i * 376
+        rounded(d, (x, 40, x + 344, 296), SURFACE, 20, outline=(67, 56, 78))
+        text(d, (x + 24, 63), number, 30, LAV, True)
+        text(d, (x + 24, 123), label, 30, TEXT, True)
+        for j, line in enumerate(lines):
+            text(d, (x + 24, 191 + j * 34), line, 23, MUTED)
+        if i < 3:
+            text(d, (x + 348, 145), "›", 30, LAV, True)
     save(im, "readme-flow.png")
 
 def owner():
