@@ -1,15 +1,14 @@
 import type postgres from 'postgres';
 import { db } from './db';
 import { assert, HttpError } from './errors';
-import { randomToken, sha256, uuid } from './security';
+import { sha256, uuid } from './security';
 import type { Session } from './session';
 import type { AgentToolName, TaskFieldsInput } from './schemas';
 import { ownerForSession, workerForSession } from './identity';
+import { createAuthorizedAgent, assertAgentPostingAuthorized, isAgentPostingAuthorized } from './profile-authorization';
+import { assertSufficientPostingBalance, type PostingBalanceDependency } from './posting-balance';
 import { readT2000FeeBps, t2000Config } from '../sui/t2000';
 
-const AGENT_SCOPES: AgentToolName[] = [
-  'search_workers', 'create_task', 'get_task', 'request_hire', 'review_submission', 'request_release', 'list_applicants', 'select_worker',
-];
 const APPROVAL_TTL_MS = 10 * 60 * 1000;
 export const DEFAULT_REVIEW_WINDOW_MS = 5 * 60 * 1000;
 export const DEFAULT_REJECT_SPLIT_BPS = 5_000;
@@ -49,7 +48,9 @@ export async function getBrowserState(session: Session) {
     session.ownerId ? ownerForSession(session).catch(() => null) : Promise.resolve(null),
   ]);
   const agents = owner ? await db()`
-    SELECT id, name, categories, asset, network, decimals, max_task_atomic, total_budget_atomic, reserved_atomic, spent_atomic, active
+    SELECT id, owner_id, name, categories, scopes, asset, network, decimals, max_task_atomic, total_budget_atomic, reserved_atomic, spent_atomic, active,
+           authorization_required, authorization_policy_hash, authorization_wallet,
+           authorization_signature, authorization_message, authorized_at
     FROM agents WHERE owner_id = ${owner.id} ORDER BY created_at
   ` : [];
   const publicTasks = await db()`
@@ -131,6 +132,7 @@ export async function getBrowserState(session: Session) {
       network: agent.network,
       decimals: Number(agent.decimals),
       active: agent.active,
+      authorizationRequired: !isAgentPostingAuthorized(agent, owner?.wallet_address ?? ''),
     })),
     tasks: publicTasks.map((task) => {
       const isParticipant = task.owner_id === owner?.id || task.assigned_worker_id === worker?.id;
@@ -189,24 +191,18 @@ export async function createAgent(session: Session, input: {
   categories: string[];
   maxTaskAtomic: string;
   totalBudgetAtomic: string;
+  challengeId: string;
+  signature: string;
 }) {
-  const owner = await ownerForSession(session);
-  assert(BigInt(input.maxTaskAtomic) <= BigInt(input.totalBudgetAtomic), 400, 'invalid_budget', 'Per-task limit cannot exceed total budget.');
-  const categories = [...new Set(input.categories)];
-  const id = uuid();
-  const apiKey = `gw_live_${randomToken(32)}`;
-  await db()`
-    INSERT INTO agents (id, owner_id, name, api_key_hash, scopes, categories, max_task_atomic, total_budget_atomic, asset, network, decimals, legacy_read_only)
-    VALUES (${id}, ${owner.id}, ${input.name}, ${sha256(apiKey)}, ${db().array(AGENT_SCOPES)}, ${db().array(categories)}, ${input.maxTaskAtomic}, ${input.totalBudgetAtomic}, 'USDC', 'mainnet', 6, false)
-  `;
-  await db()`
-    INSERT INTO audit_events (actor_type, actor_id, event_type)
-    VALUES ('owner', ${owner.id}, 'agent_created')
-  `;
-  return { agentId: id, apiKey, scopes: AGENT_SCOPES, categories, maxTaskAtomic: input.maxTaskAtomic, totalBudgetAtomic: input.totalBudgetAtomic, asset: 'USDC', network: 'mainnet', decimals: 6 };
+  return createAuthorizedAgent(session, input);
 }
 
-export async function createTaskForAgent(agent: AgentPrincipal, fields: TaskFieldsInput, client: postgres.Sql = db()) {
+export async function createTaskForAgent(
+  agent: AgentPrincipal,
+  fields: TaskFieldsInput,
+  client: postgres.Sql = db(),
+  balanceDependency?: PostingBalanceDependency,
+) {
   assertScope(agent, 'create_task');
   // Keep old direct callers source-compatible while the validated request
   // schemas expose only amountAtomic. New rows are always tagged USDC below.
@@ -219,6 +215,54 @@ export async function createTaskForAgent(agent: AgentPrincipal, fields: TaskFiel
   const taskId = uuid();
   try {
     return await client.begin(async (tx) => {
+      const [owner] = await tx`
+        SELECT id, wallet_address, wallet_verified_at
+        FROM owners
+        WHERE id = ${agent.ownerId}
+        FOR UPDATE
+      `;
+      assert(owner, 404, 'owner_missing', 'Owner account was not found.');
+      assert(owner.wallet_address && owner.wallet_verified_at, 409, 'owner_wallet_required', 'Link and verify a signed owner funding wallet before posting a task.');
+
+      // Lock the complete agent row before checking the one-time profile
+      // authorization and reserving any amount.  The owner lock above also
+      // serializes creates made through different agents belonging to one
+      // owner.
+      const [agentRow] = await tx`
+        SELECT *
+        FROM agents
+        WHERE id = ${agent.id} AND owner_id = ${owner.id} AND active = true
+        FOR UPDATE
+      `;
+      assert(agentRow, 403, 'agent_policy_rejected', 'Agent is not active for this owner.');
+      assertAgentPostingAuthorized(agentRow, owner.wallet_address);
+      const agentAmount = BigInt(amountAtomic);
+      const agentMaxTask = BigInt(String(agentRow.max_task_atomic));
+      const agentTotalBudget = BigInt(String(agentRow.total_budget_atomic));
+      const agentReserved = BigInt(String(agentRow.reserved_atomic ?? 0));
+      const agentSpent = BigInt(String(agentRow.spent_atomic ?? 0));
+      assert(
+        agentAmount <= agentMaxTask
+          && agentSpent + agentReserved + agentAmount <= agentTotalBudget
+          && Array.isArray(agentRow.categories)
+          && agentRow.categories.includes(fields.category),
+        403,
+        'agent_policy_rejected',
+        'Task exceeds the agent category, per-task, or remaining budget policy.',
+      );
+
+      const [outstanding] = await tx`
+        SELECT COALESCE(SUM(amount_atomic), 0)::text AS outstanding_atomic
+        FROM tasks
+        WHERE owner_id = ${owner.id}
+          AND asset = 'USDC' AND network = 'mainnet' AND decimals = 6 AND legacy_read_only = false
+          AND state IN ('OPEN', 'ASSIGNED', 'FUNDING')
+      `;
+      const outstandingAtomic = String(outstanding?.outstanding_atomic ?? '');
+      assert(/^(0|[1-9][0-9]*)$/.test(outstandingAtomic), 503, 'owner_balance_unavailable', 'Outstanding owner task balances could not be verified.');
+      const requiredAtomic = (BigInt(outstandingAtomic) + BigInt(amountAtomic)).toString();
+      await assertSufficientPostingBalance(owner.wallet_address, requiredAtomic, balanceDependency);
+
       const [reserved] = await tx`
         UPDATE agents
         SET reserved_atomic = reserved_atomic + ${amountAtomic}

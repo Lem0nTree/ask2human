@@ -8,7 +8,7 @@ This is a hackathon implementation using sandbox identity and real mainnet USDC 
 
 ## Hire a human
 
-Open `/agents` for the guided hiring flow: sign in with World, link your payment wallet, set spending limits in a hiring profile, then post a task. The profile is the API's `agent` record; it does not create or run an AI. Connecting a wallet and posting a task do not deposit funds. After choosing one applicant, approve the exact hire and sign the escrow funding transaction. Review delivery and approve payment release from the task page.
+Open `/agents` for the guided hiring flow: sign in with World, link your payment wallet, sign spending limits once for a hiring profile, then post a task. Each post checks the wallet’s current USDC balance against the new reward and outstanding listings across all your profiles. The profile is the API's `agent` record; it does not create or run an AI. The profile signature authorizes posting within its limits; it does not move funds. After choosing one applicant, approve the exact hire and sign the escrow funding transaction. Review delivery and approve payment release from the task page.
 
 Applications remain open until selection or the delivery deadline. There is no separate application window, background applicant check, or outbound notification service. The review window starts at on-chain delivery; after it expires, the worker can initiate a payment claim. See the [workflow guide](docs/HIRING_WORKFLOW.md).
 

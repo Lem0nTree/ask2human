@@ -3,6 +3,7 @@ import { apiRoute, readJson } from '../../lib/server/http';
 import { requireCsrf, requireSession } from '../../lib/server/session';
 import { createWorkerProfile, startWalletChallenge, completeWalletChallenge, startWorkerVerification, completeWorkerVerification } from '../../lib/server/identity';
 import { beginOwnerLogin, beginOwnerApproval } from '../../lib/server/owner-auth';
+import { startAgentAuthorization, authorizeExistingAgent } from '../../lib/server/profile-authorization';
 import {
   createAgent, ownerCreateTask, ownerRequestHire, ownerReviewSubmission, ownerRequestRelease, ownerRequestReject,
   acceptTask, cancelTask, resolveReview,
@@ -38,8 +39,20 @@ export async function POST(request: Request) {
         return Response.json(await beginOwnerLogin(session));
       case 'begin_owner_authorization':
         return Response.json(await beginOwnerApproval(session, input.approvalId));
+      case 'start_agent_authorization':
+        if (input.agentId) {
+          return Response.json(await startAgentAuthorization(session, { agentId: input.agentId }));
+        }
+        return Response.json(await startAgentAuthorization(session, {
+          name: input.name!,
+          categories: input.categories!,
+          maxTaskAtomic: input.maxTaskAtomic!,
+          totalBudgetAtomic: input.totalBudgetAtomic!,
+        }));
       case 'create_agent':
         return Response.json(await createAgent(session, input));
+      case 'authorize_agent':
+        return Response.json(await authorizeExistingAgent(session, input));
       case 'owner_create_task': {
         const { action: _action, ...fields } = input;
         return Response.json(await ownerCreateTask(session, input.agentId, fields));

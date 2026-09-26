@@ -245,7 +245,7 @@ async function bindOwnerWallet(tx: postgres.TransactionSql, ownerId: string, add
   const [owner] = await tx`SELECT id, wallet_address FROM owners WHERE id = ${ownerId} FOR UPDATE`;
   assert(owner, 404, 'owner_missing', 'Owner account was not found.');
   if (owner.wallet_address && owner.wallet_address !== address) {
-    const [active] = await tx`SELECT 1 FROM tasks WHERE owner_id = ${ownerId} AND state IN ('ASSIGNED','FUNDING','FUNDED','SUBMITTED','REVIEW') LIMIT 1`;
+    const [active] = await tx`SELECT 1 FROM tasks WHERE owner_id = ${ownerId} AND state IN ('OPEN','ASSIGNED','FUNDING','FUNDED','SUBMITTED','REVIEW') LIMIT 1`;
     assert(!active, 409, 'wallet_change_blocked', 'The funding wallet cannot change while this owner has an active task.');
   }
   await tx`UPDATE owners SET wallet_address = ${address}, wallet_verified_at = now() WHERE id = ${ownerId}`;

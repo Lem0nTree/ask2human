@@ -152,6 +152,7 @@ export type ExperienceBrowserState = {
     network: string;
     decimals: number;
     active: boolean;
+    authorizationRequired: boolean;
   }>;
   tasks: Array<{
     id: string;
@@ -350,6 +351,7 @@ export type OwnerDashboard = {
     availableAtomic: string;
     asset: ExperienceAsset;
     active: boolean;
+    authorizationRequired: boolean;
   }>;
   tasks: Array<{
     id: string;

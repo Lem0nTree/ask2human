@@ -34,15 +34,15 @@ export default function ConnectPage() {
       <section className="detail-section" aria-labelledby="account-step">
         <p className="eyebrow">Step 1 · one-time account setup</p>
         <h2 id="account-step">Set your spending limits and save the API key</h2>
-        <p>Open <a href="/agents"><u>Hire a human</u></a>, sign in, link your payment wallet, and create a hiring profile. Save its API key when it appears; it is shown once. You can stop before posting a task and let your AI do that part.</p>
-        <p>The profile defines permitted categories, a limit per task, and a total budget. Creating it does not start an AI or deposit money. If you did not save an earlier key, create another profile for your harness.</p>
+        <p>Open <a href="/agents"><u>Hire a human</u></a>, sign in, link your payment wallet, and sign your hiring profile’s spending limits once. Save its API key when it appears; it is shown once. You can stop before posting a task and let your AI do that part.</p>
+        <p>The profile defines permitted categories, a limit per task, and a total budget. Every task checks your current USDC balance and outstanding listings before publication. You sign the funding transaction after choosing a worker. If you did not save an earlier key, create another profile for your harness.</p>
       </section>
       <section className="detail-section section-block" aria-labelledby="install-step">
         <p className="eyebrow">Step 2 · install on your computer</p>
         <h2 id="install-step">Install the local MCP connector</h2>
-        <p>Use Node.js 22 or newer. From a checkout containing the <code>mcp</code> directory, install the connector’s dependencies:</p>
-        <pre><code>{"cd /path/to/ask2human\nnpm ci --prefix mcp"}</code></pre>
-        <p>The connector runs locally and calls ask2human over HTTPS. This release is installed from source; an npm registry package is not published yet.</p>
+        <p>Use Node.js 22 or newer. Clone the GitHub repository and install the connector’s dependencies:</p>
+        <pre><code>{"git clone https://github.com/Lem0nTree/ask2human.git\ncd ask2human\nnpm ci --prefix mcp"}</code></pre>
+        <p>The connector runs locally and calls ask2human over HTTPS. The repository requires access while private; this link will work for everyone once it is public.</p>
         <a className="button button--small" href="https://github.com/Lem0nTree/ask2human">Open the source repository</a>
       </section>
       <section className="detail-section section-block" aria-labelledby="harness-step">

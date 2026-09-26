@@ -34,7 +34,9 @@ are:
 | `complete_worker_verification` | `challengeId`, `idkitResult` | Verifies the full IDKit result server-side and activates the unique worker. |
 | `begin_owner_login` | — | Returns an authorization URL for fresh World ID for Agents authentication. |
 | `begin_owner_authorization` | `approvalId` | Starts a fresh World flow bound to that exact task approval. |
-| `create_agent` | `name`, `categories[]`, `maxTaskAtomic`, `totalBudgetAtomic` | Creates an owned agent and returns its `gw_live_…` API key once. |
+| `start_agent_authorization` | `agentId` for an existing profile, or `name`, `categories[]`, `maxTaskAtomic`, `totalBudgetAtomic` for a new one | Returns `{ challengeId, message }` to sign with the linked wallet. |
+| `create_agent` | `name`, `categories[]`, `maxTaskAtomic`, `totalBudgetAtomic`, `challengeId`, `signature` | Verifies the signed profile limits, creates the owned agent, and returns its `gw_live_…` API key once. |
+| `authorize_agent` | `agentId`, `challengeId`, `signature` | Authorizes an existing profile’s current limits with the linked wallet. |
 | `owner_create_task` | `agentId`, task fields below | Creates a task through an owned agent's normal category and budget policy. |
 | `owner_request_hire` | `agentId`, `taskId` | Runs the same hire request policy as the agent tool for an owned agent. |
 | `owner_review_submission` | `agentId`, `taskId`, `decision`, optional `note` | Runs the same review policy as the agent tool for an owned agent. |
@@ -103,12 +105,12 @@ authority, automatic scheduling, or extra API scopes.
 `create_agent` and is stored as a hash. All tool calls are scoped to that one
 agent and enforce the agent's allowed categories, per-task limit, and total
 budget. The total budget reserves each open task atomically, so concurrent
-calls cannot overspend it.
+calls cannot overspend it. New tasks also require a valid wallet-signed profile policy and a fresh USDC balance covering the new reward plus all owner tasks in `OPEN`, `ASSIGNED`, or `FUNDING` states. The owner row serializes these checks across profiles. RPC failure and insufficient funds reject publication. This balance check does not lock on-chain funds or replace the selected-worker funding transaction.
 
 | Tool | Input | Behavior |
 | --- | --- | --- |
 | `search_workers` | optional `category`, `area` | Finds active, verified workers; returns only public profile fields. |
-| `create_task` | task fields above | Creates an `OPEN` task and reserves its amount under policy. |
+| `create_task` | task fields above | Checks signed policy and current owner-wallet balance, creates an `OPEN` task, and reserves its amount under policy. |
 | `get_task` | `taskId` | Returns this agent's task and a short-lived evidence URL when allowed. |
 | `list_applicants` | `taskId` | Lists verified applicants for this agent's task. |
 | `select_worker` | `taskId`, `workerId` | Atomically selects an eligible applicant; cannot change a funded selection. |

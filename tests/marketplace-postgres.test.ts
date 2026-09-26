@@ -74,24 +74,60 @@ test('PostgreSQL enforces atomic budgets, one-winner acceptance, and safe browse
     `;
     register(`data:text/javascript,${encodeURIComponent(serverOnlyLoader)}`, import.meta.url);
     const { createTaskForAgent, getBrowserState } = await import('../app/lib/server/marketplace');
+    const { canonicalProfilePolicy, profilePolicyHash } = await import('../app/lib/server/profile-authorization');
     const { ownerSelectWorker } = await import('../app/lib/server/experience');
     const { startWalletChallenge, completeWalletChallenge } = await import('../app/lib/server/identity');
 
     const ownerId = randomUUID();
     const agentId = randomUUID();
+    const otherAgentId = randomUUID();
     const workerIds = [randomUUID(), randomUUID()];
     const workerWallets = [`0x${'11'.repeat(32)}`, `0x${'22'.repeat(32)}`];
     const privateNullifiers = [`0x${'aa'.repeat(32)}`, `0x${'bb'.repeat(32)}`];
+    const ownerWallet = `0x${'33'.repeat(32)}`;
     const oidcSubjectFixture = `test-only-subject-${randomUUID()}`;
+    process.env.APP_URL = 'https://test.invalid';
+    const agentScopes = ['search_workers', 'create_task', 'get_task', 'request_hire', 'review_submission', 'request_release'];
+    const agentCategories = ['home'];
+    const policy = canonicalProfilePolicy({
+      ownerId,
+      agentId,
+      name: 'test agent',
+      categories: agentCategories,
+      scopes: agentScopes,
+      maxTaskAtomic: '100',
+      totalBudgetAtomic: '100',
+    });
+    const policyHash = profilePolicyHash(policy);
+    const otherPolicy = canonicalProfilePolicy({
+      ownerId,
+      agentId: otherAgentId,
+      name: 'other test agent',
+      categories: agentCategories,
+      scopes: agentScopes,
+      maxTaskAtomic: '100',
+      totalBudgetAtomic: '100',
+    });
+    const otherPolicyHash = profilePolicyHash(otherPolicy);
     await isolated`
-      INSERT INTO owners (id, oidc_issuer, oidc_subject)
-      VALUES (${ownerId}, 'https://test.invalid', ${oidcSubjectFixture})
+      INSERT INTO owners (id, oidc_issuer, oidc_subject, wallet_address, wallet_verified_at)
+      VALUES (${ownerId}, 'https://test.invalid', ${oidcSubjectFixture}, ${ownerWallet}, now())
     `;
     await isolated`
-      INSERT INTO agents (id, owner_id, name, api_key_hash, scopes, categories, max_task_atomic, total_budget_atomic)
-      VALUES (${agentId}, ${ownerId}, 'test agent', ${'f'.repeat(64)}, ${isolated.array([
-        'search_workers', 'create_task', 'get_task', 'request_hire', 'review_submission', 'request_release',
-      ])}, ${isolated.array(['home'])}, 100, 100)
+      INSERT INTO agents (
+        id, owner_id, name, api_key_hash, scopes, categories, max_task_atomic, total_budget_atomic,
+        authorization_required, authorization_policy_hash, authorization_wallet,
+        authorization_signature, authorization_message, authorized_at
+      )
+      VALUES
+        (
+          ${agentId}, ${ownerId}, 'test agent', ${'f'.repeat(64)}, ${isolated.array(agentScopes)}, ${isolated.array(agentCategories)}, 100, 100,
+          false, ${policyHash}, ${ownerWallet}, 'test-only-signature', 'test-only-profile-authorization', now()
+        ),
+        (
+          ${otherAgentId}, ${ownerId}, 'other test agent', ${'e'.repeat(64)}, ${isolated.array(agentScopes)}, ${isolated.array(agentCategories)}, 100, 100,
+          false, ${otherPolicyHash}, ${ownerWallet}, 'test-only-signature', 'test-only-profile-authorization', now()
+        )
     `;
     for (let index = 0; index < workerIds.length; index += 1) {
       await isolated`
@@ -102,7 +138,6 @@ test('PostgreSQL enforces atomic budgets, one-winner acceptance, and safe browse
       `;
     }
 
-    process.env.APP_URL = 'https://test.invalid';
     const recoveryWorkerId = randomUUID();
     const recoverySessionId = randomUUID();
     await isolated`
@@ -136,6 +171,15 @@ test('PostgreSQL enforces atomic budgets, one-winner acceptance, and safe browse
       maxTaskAtomic: '100',
       totalBudgetAtomic: '100',
     };
+    const otherAgent: AgentPrincipal = {
+      id: otherAgentId,
+      ownerId,
+      name: 'other test agent',
+      scopes: ['search_workers', 'create_task', 'get_task', 'request_hire', 'review_submission', 'request_release'],
+      categories: ['home'],
+      maxTaskAtomic: '100',
+      totalBudgetAtomic: '100',
+    };
     const makeTask = (amountAtomic: string) => ({
       title: 'Isolated budget test',
       brief: 'Use the disposable test schema only.',
@@ -145,23 +189,27 @@ test('PostgreSQL enforces atomic budgets, one-winner acceptance, and safe browse
       amountAtomic,
       deadline: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     });
+    const postingBalance = {
+      readBalance: async () => ({ balance: { balance: '100' } }),
+    };
 
     const competingCreates = await Promise.allSettled([
-      createTaskForAgent(agent, makeTask('70')),
-      createTaskForAgent(agent, makeTask('70')),
+      createTaskForAgent(agent, makeTask('70'), undefined, postingBalance),
+      createTaskForAgent(otherAgent, makeTask('70'), undefined, postingBalance),
     ]);
     const created = competingCreates.filter((result) => result.status === 'fulfilled');
     assert.equal(created.length, 1, 'one concurrent task creation should reserve the remaining budget');
     const openTaskId = created[0].status === 'fulfilled' ? created[0].value.id : '';
     assert.ok(openTaskId);
-    const [budgetAfterRace] = await isolated`SELECT reserved_atomic FROM agents WHERE id = ${agentId}`;
+    const [budgetAfterRace] = await isolated`SELECT COALESCE(SUM(reserved_atomic), 0) AS reserved_atomic FROM agents WHERE owner_id = ${ownerId}`;
     assert.equal(String(budgetAfterRace.reserved_atomic), '70');
+    const secondTask = await createTaskForAgent(agent, makeTask('30'), undefined, postingBalance);
+    const winningAgentId = created[0].status === 'fulfilled' ? created[0].value.agentId : '';
+    const winningAgent = winningAgentId === otherAgent.id ? otherAgent : agent;
     await assert.rejects(
-      createTaskForAgent(agent, makeTask('31')),
+      createTaskForAgent(winningAgent, makeTask('31'), undefined, postingBalance),
       (error: unknown) => Boolean(error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'agent_policy_rejected'),
     );
-
-    const secondTask = await createTaskForAgent(agent, makeTask('30'));
     await isolated`
       INSERT INTO task_applications (id, task_id, worker_id, status)
       VALUES (${randomUUID()}, ${openTaskId}, ${workerIds[0]}, 'APPLIED'),

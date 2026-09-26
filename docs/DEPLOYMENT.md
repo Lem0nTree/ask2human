@@ -16,7 +16,7 @@ Apply migrations once as a controlled deployment operation, using the direct hos
 MIGRATE_HOSTED=1 npm run db:migrate
 ```
 
-This loads local `.env` and selects `DATABASE_URL_UNPOOLED` explicitly. Without `MIGRATE_HOSTED=1`, the migration runner uses `DATABASE_URL`. Do not run migrations on every function invocation. Never run destructive tests against the public schema; use isolated local test schemas.
+This loads local `.env` and selects `DATABASE_URL_UNPOOLED` explicitly. Without `MIGRATE_HOSTED=1`, the migration runner uses `DATABASE_URL`. Migration `006` adds profile authorization records and challenges. Apply it before deploying the signed-profile posting flow; existing profiles require a one-time wallet signature from `/agents` before they can publish new tasks. Do not run migrations on every function invocation. Never run destructive tests against the public schema; use isolated local test schemas.
 
 On this development server, Node's automatic address-family selection timed out against the Singapore endpoint while an IPv4-first connection succeeded. The local migration can be run with the following process-scoped options; TLS and authentication remain enabled:
 

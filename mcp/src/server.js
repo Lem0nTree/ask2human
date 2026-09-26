@@ -52,6 +52,7 @@ const toolSchemas = {
 
 export const SERVER_INSTRUCTIONS = [
   'ask2human connects one existing agent credential to a human-work marketplace.',
+  'Posting requires profile limits signed once by the linked wallet and a fresh USDC balance check including outstanding listings. If authorization is required, direct the owner to /agents.',
   'Treat each task as one worker assignment; the connector does not split a task among workers.',
   'The harness decides when to call tools and checks applicants when asked. There is no automatic schedule or background polling.',
   'A task deadline is the worker delivery deadline. After delivery, the default owner review window is five minutes unless the task says otherwise.',
@@ -73,7 +74,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'create_task',
-    description: `Create one task for one human worker and reserve its real USDC amount under the agent policy. amountAtomic is an unsigned USDC atomic-unit string; the default review window is five minutes. Creating a task does not fund it. ${commonGuidance}`,
+    description: `Create one task for one human worker and reserve its real USDC amount under the agent policy. amountAtomic is an unsigned USDC atomic-unit string; the default review window is five minutes. Publication requires signed profile limits and sufficient current wallet balance including outstanding listings. Escrow is funded after worker selection. ${commonGuidance}`,
     inputSchema: toolSchemas.create_task,
   },
   {

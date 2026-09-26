@@ -170,6 +170,59 @@ summary { cursor: pointer; padding: .8rem 0; min-height: 2.75rem; font-size: .84
 .hiring-profile-picker .hiring-step__status { margin: 0; }
 .hiring-profile-form, .hiring-task-form { margin-top: 16px; }
 .hiring-key-notice { display: block; margin-top: 9px; color: #d7c787; font-size: .72rem; line-height: 1.5; }
+.hiring-profile-progress { margin: 12px 0 0; padding: 9px 11px; border-left: 2px solid #b994d0; color: #d9c8e4; background: #25212b; font-size: .75rem; line-height: 1.5; }
+.hiring-profile-access { display: grid; gap: 12px; min-width: 0; margin-top: 16px; padding: 16px; border: 1px solid #655275; border-radius: 10px; background: #211d28; }
+.hiring-profile-access__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.hiring-profile-access__header h3 { margin: 0; }
+.hiring-profile-access__header .eyebrow { margin-bottom: 4px; }
+.hiring-profile-access > p, .hiring-profile-access__mcp p { margin: 0; color: #aaa7b4; font-size: .76rem; line-height: 1.55; }
+.hiring-profile-access__key { max-width: 100%; margin: 0; padding: 11px; border: 1px solid #403948; border-radius: 6px; background: #111116; color: #eadcf2; font-size: .74rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.hiring-profile-access__mcp { display: grid; gap: 9px; padding-top: 12px; border-top: 1px solid #403948; }
+.hiring-profile-access__mcp > strong { color: #eee7f2; font-size: .82rem; }
+.hiring-profile-access__mcp pre { max-width: 100%; margin: 0; padding: 10px; border-radius: 6px; background: #111116; color: #dec8ed; font-size: .72rem; line-height: 1.55; overflow-x: auto; }
+.hiring-profile-access__mcp p code { color: #dec8ed; overflow-wrap: anywhere; }
+.hiring-profile-access__mcp small { color: #918d9a; font-size: .68rem; line-height: 1.5; }
+.hiring-profile-access__mcp .button { justify-self: start; }
+.agent-summary-grid__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.agent-summary-grid__header .status-badge { flex: 0 0 auto; }
+.hiring-step--posted { border-color: #5d946f; background: linear-gradient(145deg, #1d3327, #18261f); }
+.hiring-step--posted .hiring-step__number { border-color: #8fc2a5; color: #17211b; background: #a8d7bc; }
+.hiring-task-success { display: grid; gap: 15px; min-width: 0; }
+.hiring-task-success__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.hiring-task-success__header > div { min-width: 0; }
+.hiring-task-success__header .eyebrow { margin-bottom: 5px; color: #b9dac6; }
+.hiring-task-success__header h2 { margin: 0; font-size: clamp(1.15rem, 2.8vw, 1.5rem); letter-spacing: -.03em; overflow-wrap: anywhere; }
+.hiring-task-success__heading-note { margin: 4px 0 0; color: #b9dac6; font-size: .76rem; }
+.hiring-task-success__header > .status-badge { flex: 0 0 auto; }
+.hiring-task-success__intro, .hiring-task-success__next { margin: 0; color: #c4d8c9; font-size: .8rem; line-height: 1.65; }
+.hiring-task-success__intro strong, .hiring-task-success__next strong { color: #e5f2e8; }
+.hiring-task-success__facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.hiring-task-success__facts > div { display: grid; gap: 4px; min-width: 0; padding: 10px; border: 1px solid #416149; border-radius: 7px; background: rgb(20 39 28 / 60%); }
+.hiring-task-success__facts dt, .owner-task-card__facts dt { color: #9fc2a9; font-size: .62rem; letter-spacing: .08em; text-transform: uppercase; }
+.hiring-task-success__facts dd, .owner-task-card__facts dd { min-width: 0; margin: 0; color: #ecf5ee; font-size: .76rem; font-weight: 550; line-height: 1.45; overflow-wrap: anywhere; }
+.hiring-task-success__copy, .hiring-task-success__checklist { display: grid; gap: 6px; padding: 12px; border: 1px solid #416149; border-radius: 7px; background: rgb(20 39 28 / 60%); }
+.hiring-task-success__copy > span, .hiring-task-success__checklist > span { color: #9fc2a9; font-size: .62rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.hiring-task-success__copy p { margin: 0; color: #d1e3d5; font-size: .78rem; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.hiring-task-success__checklist ul { display: grid; gap: 5px; margin: 0; padding-left: 1.1rem; color: #d1e3d5; font-size: .76rem; line-height: 1.5; }
+.hiring-task-success__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.hiring-task-success__new-task { justify-self: start; color: #d8efdf; }
+.owner-task-list { display: grid; gap: 12px; }
+.owner-task-card { display: grid; gap: 15px; min-width: 0; padding: 18px; border: 1px solid #44384f; border-radius: 12px; background: linear-gradient(115deg, #211d28, #1b1922); }
+.owner-task-card:hover { border-color: #705b82; background: #201d27; }
+.owner-task-card__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; min-width: 0; }
+.owner-task-card__header .eyebrow { margin-bottom: 5px; }
+.owner-task-card__header h3 { min-width: 0; margin: 0; color: #f0ebf4; font-size: 1.05rem; letter-spacing: -.02em; line-height: 1.3; overflow-wrap: anywhere; }
+.owner-task-card__header > .status-badge { flex: 0 0 auto; }
+.owner-task-card__facts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.owner-task-card__facts > div { display: grid; gap: 4px; min-width: 0; padding: 10px; border: 1px solid #38343f; border-radius: 7px; background: #202027; }
+.owner-task-card__facts dt { color: #a29daa; }
+.owner-task-card__facts dd { color: #e1dce5; }
+.owner-task-card__next { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; min-width: 0; padding: 11px 12px; border-left: 2px solid #806994; background: #25212b; }
+.owner-task-card__next span { color: #aaa3b5; font-size: .66rem; letter-spacing: .08em; text-transform: uppercase; }
+.owner-task-card__next strong { color: #f0e7f5; font-size: .8rem; line-height: 1.45; overflow-wrap: anywhere; text-align: right; }
+.owner-task-card__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.owner-task-card__actions .button { min-width: 0; }
+.owner-task-card > [id^="applicants-"] { min-width: 0; }
 .owner-task-lifecycle { margin: 18px 0 0; padding: 16px; border: 1px solid #413a4b; border-radius: 9px; background: #211f27; }
 .owner-task-lifecycle h3 { margin: 0; font-size: .98rem; }
 .owner-task-lifecycle__steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; list-style: none; padding: 0; margin: 13px 0 0; }
@@ -190,6 +243,7 @@ summary { cursor: pointer; padding: .8rem 0; min-height: 2.75rem; font-size: .84
   .agent-row__actions .button { width: auto; }
   .filter-panel { grid-template-columns: minmax(150px,1fr) 1fr; }
   .search-field { grid-column: 1/-1; }
+  .owner-task-card__facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 580px) {
   .topbar__inner { padding: 10px 15px; }
@@ -222,6 +276,14 @@ summary { cursor: pointer; padding: .8rem 0; min-height: 2.75rem; font-size: .84
   .hiring-step__actions .button { width: 100%; }
   .hiring-profile-picker { grid-template-columns: 1fr; align-items: stretch; }
   .hiring-profile-picker .hiring-step__status { margin-top: 2px; }
+  .hiring-profile-access__header, .agent-summary-grid__header { flex-direction: column; }
+  .hiring-profile-access__header .status-badge, .agent-summary-grid__header .status-badge { align-self: flex-start; }
+  .hiring-task-success__header, .owner-task-card__header { flex-direction: column; gap: 8px; }
+  .hiring-task-success__header > .status-badge, .owner-task-card__header > .status-badge { align-self: flex-start; }
+  .hiring-task-success__facts, .owner-task-card__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+  .owner-task-card { padding: 14px; }
+  .owner-task-card__next { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .owner-task-card__next strong { text-align: left; }
   .owner-task-lifecycle__steps { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; } }

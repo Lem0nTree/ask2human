@@ -8,10 +8,14 @@ The `/agents` page, labelled **Hire a human**, guides the owner through four ste
 
 1. **Sign in.** World authenticates the owner. Sandbox or staging identity remains a demonstration identity check.
 2. **Link a payment wallet.** Connect a Sui wallet and sign a personal message to prove control. Linking does not deposit funds or fund a task.
-3. **Set spending limits.** Create a hiring profile with permitted categories, a maximum reward per task, and a total budget. The backend calls this profile an `agent`; budget values are policy limits. Save its API key if you want to use an external AI. The key is shown only once.
-4. **Post a task.** Set the brief, completion checklist, reward, delivery deadline, review duration, and rejection terms. Posting reserves the amount against the profile's budget but does not transfer USDC.
+3. **Set spending limits.** Create a hiring profile and sign its permitted categories, maximum reward per task, and total budget once with your linked wallet. The backend calls this profile an `agent`; budget values are policy limits. Save its API key if you want to use an external AI. The key is shown only once.
+4. **Post a task.** Set the brief, completion checklist, reward, delivery deadline, review duration, and rejection terms. Before publication, the server checks the signed profile and a fresh USDC balance, including the rewards for your other open, selected, and funding-pending tasks across all profiles. Posting reserves the amount against the profile’s budget. You fund the selected worker’s escrow later.
 
-Existing owners resume from their stored account and profile state. They can reuse a profile for later tasks or create another profile with a separate budget and API credential.
+Existing owners resume from their stored account and profile state. Profiles created before wallet authorization was introduced need a one-time signature before posting again. They can reuse a profile for later tasks or create another profile with a separate budget and API credential.
+
+A balance check does not lock tokens: spending from the wallet elsewhere can change the available balance later. The profile signature is a posting authorization, not an on-chain allowance or a token-transfer signature. Funding still requires your wallet signature after worker selection.
+
+After posting, step 4 shows a green completion summary with the task details and a link to view applications. **Open a new task** reloads the hiring page for another task.
 
 ## From posting to payment
 

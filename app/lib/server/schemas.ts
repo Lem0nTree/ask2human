@@ -29,7 +29,33 @@ export const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('complete_worker_verification'), challengeId: uuidSchema, idkitResult: z.unknown() }).strict(),
   z.object({ action: z.literal('begin_owner_login') }).strict(),
   z.object({ action: z.literal('begin_owner_authorization'), approvalId: uuidSchema }).strict(),
-  z.object({ action: z.literal('create_agent'), name: z.string().trim().min(1).max(80), categories: z.array(categorySchema).min(1).max(20), maxTaskAtomic: amountAtomicSchema, totalBudgetAtomic: amountAtomicSchema }).strict(),
+  z.object({
+    action: z.literal('start_agent_authorization'),
+    agentId: uuidSchema.optional(),
+    name: z.string().trim().min(1).max(80).optional(),
+    categories: z.array(categorySchema).min(1).max(20).optional(),
+    maxTaskAtomic: amountAtomicSchema.optional(),
+    totalBudgetAtomic: amountAtomicSchema.optional(),
+  }).strict().superRefine((value, context) => {
+    const hasExisting = value.agentId !== undefined;
+    const profileFields = [value.name, value.categories, value.maxTaskAtomic, value.totalBudgetAtomic];
+    if (hasExisting && profileFields.some((field) => field !== undefined)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'Use either agentId or new profile fields.' });
+    }
+    if (!hasExisting && profileFields.some((field) => field === undefined)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'New profile fields are required.' });
+    }
+  }),
+  z.object({
+    action: z.literal('create_agent'),
+    name: z.string().trim().min(1).max(80),
+    categories: z.array(categorySchema).min(1).max(20),
+    maxTaskAtomic: amountAtomicSchema,
+    totalBudgetAtomic: amountAtomicSchema,
+    challengeId: uuidSchema,
+    signature: z.string().min(20).max(4096),
+  }).strict(),
+  z.object({ action: z.literal('authorize_agent'), agentId: uuidSchema, challengeId: uuidSchema, signature: z.string().min(20).max(4096) }).strict(),
   z.object({ action: z.literal('owner_create_task'), agentId: uuidSchema, ...taskFieldsSchema.shape }).strict(),
   z.object({ action: z.literal('owner_request_hire'), agentId: uuidSchema, taskId: uuidSchema }).strict(),
   z.object({ action: z.literal('owner_review_submission'), agentId: uuidSchema, taskId: uuidSchema, decision: z.enum(['accept','request_review']), note: z.string().trim().max(1000).optional() }).strict(),

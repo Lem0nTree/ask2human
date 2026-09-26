@@ -1,6 +1,7 @@
 import { db } from './db';
 import { assert } from './errors';
 import { ownerForSession, workerForSession } from './identity';
+import { isAgentPostingAuthorized } from './profile-authorization';
 import { uuid } from './security';
 import type { Session } from './session';
 
@@ -313,8 +314,10 @@ export async function getWorkerDashboard(session: Session) {
 export async function getOwnerExperienceDashboard(session: Session) {
   const owner = await ownerForSession(session);
   const agents = await db()`
-    SELECT id, name, categories, max_task_atomic, total_budget_atomic, reserved_atomic,
-           spent_atomic, asset, network, decimals, active
+    SELECT id, owner_id, name, categories, scopes, max_task_atomic, total_budget_atomic, reserved_atomic,
+           spent_atomic, asset, network, decimals, active, authorization_required,
+           authorization_policy_hash, authorization_wallet, authorization_signature,
+           authorization_message, authorized_at
     FROM agents WHERE owner_id = ${owner.id} ORDER BY created_at ASC
   `;
   const taskRows = await db()`
@@ -338,6 +341,7 @@ export async function getOwnerExperienceDashboard(session: Session) {
       availableAtomic: String(BigInt(agent.total_budget_atomic) - BigInt(agent.reserved_atomic) - BigInt(agent.spent_atomic)),
       asset: assetFrom(agent),
       active: Boolean(agent.active),
+      authorizationRequired: !isAgentPostingAuthorized(agent, owner.wallet_address ?? ''),
     })),
     tasks: taskRows.map((task) => ({
       id: task.id,
