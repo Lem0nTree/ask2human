@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+*.swp
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+*.log
+.vercel/
+contracts/**/build/

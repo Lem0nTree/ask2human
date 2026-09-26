@@ -1,0 +1,14 @@
+[package]
+name = "ask2human_escrow"
+version = "0.0.1"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "testnet-v1.80.1" }
+
+[addresses]
+ask2human_escrow = "0x0"
+
+[environments]
+testnet = "4c78adac"

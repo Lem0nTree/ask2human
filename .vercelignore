@@ -1,0 +1,8 @@
+.env
+.env.*
+.git
+.next
+node_modules
+coverage
+*.log
+contracts/**/build
