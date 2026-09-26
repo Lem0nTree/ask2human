@@ -195,7 +195,7 @@ function ownerTaskLifecycleStep(state: string): number | null {
   return null;
 }
 
-function updateMarketplaceFilter(name: "q" | "category", value: string) {
+function updateMarketplaceFilter(name: "q" | "category" | "status", value: string) {
   const url = new URL(window.location.href);
   if (value) url.searchParams.set(name, value);
   else url.searchParams.delete(name);
@@ -552,6 +552,8 @@ function MarketplaceContent() {
   const [taskStats, setTaskStats] = useState({ count: 0, totalPayoutAtomic: "0" });
   const [search, setSearch] = useState(() => typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("q") ?? "");
   const [category, setCategory] = useState(() => typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("category") ?? "");
+  const [status, setStatus] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("status") === "completed" ? "completed" : "open");
+  const completed = status === "completed";
   const [loadError, setLoadError] = useState("");
   const [loadingTasks, setLoadingTasks] = useState(true);
   const requestSequence = useRef(0);
@@ -560,18 +562,18 @@ function MarketplaceContent() {
     const requestId = ++requestSequence.current;
     setLoadingTasks(true);
     try {
-      const result = await readExperience<{ tasks: PublicTaskSummary[]; stats: { count: number; totalPayoutAtomic: string } }>("tasks", { q: search, category });
+      const result = await readExperience<{ tasks: PublicTaskSummary[]; stats: { count: number; totalPayoutAtomic: string } }>("tasks", { q: search, category, status });
       if (requestId !== requestSequence.current) return;
       setRows(result.tasks);
       setTaskStats(result.stats);
       setLoadError("");
     } catch (cause) {
       if (requestId !== requestSequence.current) return;
-      setLoadError(cause instanceof Error ? cause.message : "Open tasks are unavailable.");
+      setLoadError(cause instanceof Error ? cause.message : "Task listings are unavailable.");
     } finally {
       if (requestId === requestSequence.current) setLoadingTasks(false);
     }
-  }, [search, category]);
+  }, [search, category, status]);
 
   useEffect(() => { void loadTasks(); }, [loadTasks]);
   const categories = useMemo(() => [...new Set([...CATEGORIES, ...rows.map((row) => row.category)])].sort(), [rows]);
@@ -582,23 +584,24 @@ function MarketplaceContent() {
       <p className="eyebrow"><i />Human work, secured by escrow</p>
       <h1>Offline tasks. <span>Human workers.</span></h1>
       <p>Find work posted by task owners. Apply as an eligible worker, agree on exact terms, and track confirmed USDC payments.</p>
-      <div className="directory-collection-stats"><span>{loadingTasks ? <LoadingState label="Loading open task count…" variant="inline" /> : <strong>{loadError ? "—" : taskStats.count}</strong>} open tasks</span><span className="testnet-dot" /><span>{loadingTasks ? <LoadingState label="Loading total USDC payout…" variant="inline" /> : <strong>{loadError ? "—" : formatAtomic(taskStats.totalPayoutAtomic, MAINNET_USDC)}</strong>} total available payout</span></div>
+      <div className="directory-collection-stats"><span>{loadingTasks ? <LoadingState label="Loading task count…" variant="inline" /> : <strong>{loadError ? "—" : taskStats.count}</strong>} {completed ? "completed" : "open"} tasks</span><span className="testnet-dot" /><span>{loadingTasks ? <LoadingState label="Loading total USDC payout…" variant="inline" /> : <strong>{loadError ? "—" : formatAtomic(taskStats.totalPayoutAtomic, MAINNET_USDC)}</strong>} {completed ? "total task rewards" : "total available payout"}</span></div>
       <small>World verification checks worker account uniqueness; it does not certify completed work.</small>
     </section>
     <section className="marketplace-section" aria-labelledby="marketplace-title">
       <SectionHeading eyebrow="Marketplace" title="Find a task" description="Open task listings show the category, service area, reward, and deadline. Verify as a worker to read the full task brief and apply." />
       <div className="filter-panel" role="search">
-        <label className="search-field"><span aria-hidden="true">⌕</span><input aria-label="Search open tasks" type="search" placeholder="Search tasks, area, or category" value={search} onChange={(event) => { setSearch(event.target.value); updateMarketplaceFilter("q", event.target.value); }} /></label>
+        <label className="search-field"><span aria-hidden="true">⌕</span><input aria-label="Search tasks" type="search" placeholder="Search tasks, area, or category" value={search} onChange={(event) => { setSearch(event.target.value); updateMarketplaceFilter("q", event.target.value); }} /></label>
         <label className="select-field"><span>Category</span><select value={category} onChange={(event) => { setCategory(event.target.value); updateMarketplaceFilter("category", event.target.value); }}><option value="">All categories</option>{categories.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label className="select-field"><span>Status</span><select value={status} onChange={(event) => { setStatus(event.target.value); updateMarketplaceFilter("status", event.target.value === "open" ? "" : event.target.value); }}><option value="open">Open</option><option value="completed">Completed</option></select></label>
         <a className="button button--primary" href="/agents">Hire a human</a>
       </div>
       <div className="marketplace-results-heading"><span>{loadingTasks ? <LoadingState label="Loading task count…" variant="inline" /> : `${rows.length} ${rows.length === 1 ? "task" : "tasks"}`}</span><span>Recently posted</span></div>
-      {loadingTasks ? <LoadingState label="Loading open tasks…" variant="list" /> : loadError ? <Callout title="Task listings unavailable" tone="danger">{loadError}</Callout> : rows.length === 0
-        ? <EmptyState title="No open tasks right now">New requests appear here after a task owner posts them. Check back later or set up a hiring profile from your owner workspace.</EmptyState>
+      {loadingTasks ? <LoadingState label="Loading tasks…" variant="list" /> : loadError ? <Callout title="Task listings unavailable" tone="danger">{loadError}</Callout> : rows.length === 0
+        ? <EmptyState title={completed ? "No completed tasks found" : "No open tasks found"}>Try changing your search or category. Completed tasks appear after settlement is confirmed.</EmptyState>
         : <div className="agent-grid">{rows.map((task) => <article key={task.id} className="agent-row task-row">
           <div className="agent-row__art"><span className="task-emblem" aria-hidden="true">{task.category.slice(0, 1).toUpperCase()}</span></div>
-          <div className="agent-row__content"><h3>{task.title}</h3><p className="agent-row__description">Open the task page for the full brief and application requirements.</p><div className="agent-row__meta"><span>{task.category}</span><span>{task.area}</span><span>Due {dateLabel(task.deadline)}</span></div></div>
-          <div className="agent-row__offer"><strong>{formatAtomic(task.amountAtomic, task.asset)}</strong><StatusBadge value="OPEN" tone="info" /><small>Task reward</small></div>
+          <div className="agent-row__content"><h3>{task.title}</h3><p className="agent-row__description">{completed ? "View the completed task and its settlement status." : "Open the task page for the full brief and application requirements."}</p><div className="agent-row__meta"><span>{task.category}</span><span>{task.area}</span><span>Due {dateLabel(task.deadline)}</span></div></div>
+          <div className="agent-row__offer"><strong>{formatAtomic(task.amountAtomic, task.asset)}</strong><StatusBadge value={taskStatusLabel(task.state)} tone={taskTone(task.state)} /><small>Task reward</small></div>
           <div className="agent-row__actions"><a className="button button--primary" href={`/tasks/${task.id}`}>View task <span aria-hidden="true">↗</span></a></div>
         </article>)}</div>}
     </section>

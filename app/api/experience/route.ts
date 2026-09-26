@@ -32,7 +32,8 @@ export async function GET(request: Request) {
     if (view === 'tasks') {
       const category = url.searchParams.get('category')?.trim() || undefined;
       const query = url.searchParams.get('q')?.trim() || undefined;
-      const filters = { category, query };
+      const status = url.searchParams.get('status') === 'completed' ? 'completed' : 'open';
+      const filters = { category, query, status } as const;
       const [tasks, stats] = await Promise.all([listPublicTasks(filters), getPublicTaskStats(filters)]);
       return { tasks, stats };
     }

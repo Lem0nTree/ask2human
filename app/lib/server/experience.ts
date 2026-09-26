@@ -16,12 +16,16 @@ function feeAtBps(grossAtomic: string, feeBps: number): string {
   return ((BigInt(grossAtomic) * BigInt(feeBps)) / 10_000n).toString();
 }
 
-export async function listPublicTasks(filters: { category?: string; query?: string } = {}) {
+export async function listPublicTasks(filters: { category?: string; query?: string; status?: "open" | "completed" } = {}) {
   const rows = await db()`
     SELECT id, title, category, area, amount_atomic, asset, network, decimals,
            deadline, state, created_at
     FROM tasks
-    WHERE state = 'OPEN' AND deadline > now()
+    WHERE (
+        (${filters.status === 'completed'} AND state IN ('PAID', 'REJECTED')
+          AND EXISTS (SELECT 1 FROM settlements s WHERE s.task_id = tasks.id AND s.settled_at IS NOT NULL))
+        OR (${filters.status !== 'completed'} AND state = 'OPEN' AND deadline > now())
+      )
       AND (${filters.category ?? null}::text IS NULL OR category = ${filters.category ?? null})
       AND (${filters.query ? `%${filters.query.trim()}%` : null}::text IS NULL OR
            title ILIKE ${filters.query ? `%${filters.query.trim()}%` : null} OR
@@ -42,12 +46,16 @@ export async function listPublicTasks(filters: { category?: string; query?: stri
   }));
 }
 
-export async function getPublicTaskStats(filters: { category?: string; query?: string } = {}) {
+export async function getPublicTaskStats(filters: { category?: string; query?: string; status?: "open" | "completed" } = {}) {
   const [row] = await db()`
     SELECT COUNT(*)::integer AS count,
            COALESCE(SUM(CASE WHEN asset = 'USDC' AND network = 'mainnet' THEN amount_atomic::numeric ELSE 0 END), 0) AS total_payout_atomic
     FROM tasks
-    WHERE state = 'OPEN' AND deadline > now()
+    WHERE (
+        (${filters.status === 'completed'} AND state IN ('PAID', 'REJECTED')
+          AND EXISTS (SELECT 1 FROM settlements s WHERE s.task_id = tasks.id AND s.settled_at IS NOT NULL))
+        OR (${filters.status !== 'completed'} AND state = 'OPEN' AND deadline > now())
+      )
       AND (${filters.category ?? null}::text IS NULL OR category = ${filters.category ?? null})
       AND (${filters.query ? `%${filters.query.trim()}%` : null}::text IS NULL OR
            title ILIKE ${filters.query ? `%${filters.query.trim()}%` : null} OR
