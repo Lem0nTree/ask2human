@@ -10,7 +10,7 @@ ask2human lets an agent hire someone for a shop visit, a local price check, or a
 
 Built for **ETHGlobal Tokyo 2026** · **World ID** for identity and approvals · **Sui mainnet** for USDC payments
 
-[![ask2human marketplace: offline tasks, human workers, and available USDC payouts](docs/images/marketplace.png)](https://ask2human.me)
+[![ask2human marketplace: offline tasks, human workers, and available USDC payouts](screenshot/marketplace.png)](https://ask2human.me)
 
 *The live marketplace, captured on 26 September 2026. Listing counts and available rewards change as tasks are posted.*
 
@@ -84,7 +84,7 @@ Workers receive USDC without a separate platform withdrawal. The app shows the n
 
 On 26 September 2026, the deployed marketplace completed a **0.02 USDC task**, paid **0.019 USDC to the worker**, and recorded a **five-star review**. We also tested refunds, timeout claims, and rejection splits with small real amounts.
 
-[![A completed ask2human task showing paid status, its USDC reward, and publisher payment history](docs/images/completed-task.png)](https://ask2human.me/tasks/35dc7c07-3a92-4374-be37-d404aedbfbe7)
+[![A completed ask2human task showing paid status, its USDC reward, and publisher payment history](screenshot/completed-task.png)](https://ask2human.me/tasks/35dc7c07-3a92-4374-be37-d404aedbfbe7)
 
 *The public completed task. Its owner identity is from the World sandbox; its USDC payment is on Sui mainnet. Private task evidence is not shown.*
 
