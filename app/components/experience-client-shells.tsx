@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState, type ChangeEvent, type ReactNode } from "react";
-import { BrandMark, LoadingState } from "./ui";
+import { BrandMark, LoadingState, SiteFooter } from "./ui";
 import { WorkIntro, WorkSetup, WorkStep } from "./work-setup";
 
 function ExperienceFallbackFrame({ children }: { children: ReactNode }) {
@@ -17,7 +17,7 @@ function ExperienceFallbackFrame({ children }: { children: ReactNode }) {
       <div className="nav-actions"><span className="network-pill"><i />Mainnet · USDC</span></div>
     </div></header>
     {children}
-    <footer className="site-footer page-shell"><span>ask2human</span><span>Mainnet USDC · confirmed receipts determine earnings</span><span>Identity checks and evidence review establish different facts</span></footer>
+    <SiteFooter />
   </>;
 }
 
@@ -47,7 +47,7 @@ function MarketplaceFallback() {
       <p className="eyebrow"><i />Human work, secured by escrow</p>
       <h1>Offline tasks. <span>Human workers.</span></h1>
       <p>Find work posted by task owners. Apply as an eligible worker, agree on exact terms, and track confirmed USDC payments.</p>
-      <div className="directory-collection-stats"><span><LoadingState label="Loading open task count…" variant="inline" /> open tasks</span><span className="testnet-dot" /><span><LoadingState label="Loading total USDC payout…" variant="inline" /> total available payout</span></div>
+      <div className="directory-collection-stats"><span><LoadingState label="Loading open task count…" variant="inline" /> open tasks</span><span className="testnet-dot" /><span><LoadingState label="Loading total USDC payout…" variant="inline" /> available payout</span></div>
       <small>World verification checks worker account uniqueness; it does not certify completed work.</small>
     </section>
     <section className="marketplace-section">

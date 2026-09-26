@@ -10,7 +10,7 @@ import { AppNavigation } from "./app-navigation";
 import { McpQuickStart } from "./mcp-quick-start";
 import { TaskPublisher } from "./task-publisher";
 import { WorkIntro, WorkSetup, WorkStep } from "./work-setup";
-import { Callout, EmptyState, LoadingState, SectionHeading, StatusBadge } from "./ui";
+import { Callout, EmptyState, LoadingState, SectionHeading, SiteFooter, StatusBadge } from "./ui";
 import { dAppKit } from "../lib/client/dapp-kit";
 import {
   formatAtomic,
@@ -268,7 +268,7 @@ function PageFrame({ children }: { children: ReactNode }) {
   return <DAppKitProvider dAppKit={dAppKit}>
     <AppNavigation />
     {children}
-    <footer className="site-footer page-shell"><span>ask2human</span><span>Mainnet USDC · confirmed receipts determine earnings</span><span>Identity checks and evidence review establish different facts</span></footer>
+    <SiteFooter />
   </DAppKitProvider>;
 }
 
@@ -586,7 +586,7 @@ function MarketplaceContent() {
       <p className="eyebrow"><i />Human work, secured by escrow</p>
       <h1>Offline tasks. <span>Human workers.</span></h1>
       <p>Find work posted by task owners. Apply as an eligible worker, agree on exact terms, and track confirmed USDC payments.</p>
-      <div className="directory-collection-stats"><span>{loadingTasks ? <LoadingState label="Loading task count…" variant="inline" /> : <strong>{loadError ? "—" : taskStats.count}</strong>} {completed ? "completed" : "open"} tasks</span><span className="testnet-dot" /><span>{loadingTasks ? <LoadingState label="Loading total USDC payout…" variant="inline" /> : <strong>{loadError ? "—" : formatAtomic(taskStats.totalPayoutAtomic, MAINNET_USDC)}</strong>} {completed ? "total task rewards" : "total available payout"}</span></div>
+      <div className="directory-collection-stats"><span>{loadingTasks ? <LoadingState label="Loading task count…" variant="inline" /> : <strong>{loadError ? "—" : taskStats.count}</strong>} {completed ? "completed" : "open"} tasks</span><span className="testnet-dot" /><span>{loadingTasks ? <LoadingState label="Loading total USDC payout…" variant="inline" /> : <strong>{loadError ? "—" : formatAtomic(taskStats.totalPayoutAtomic, MAINNET_USDC)}</strong>} {completed ? "total task rewards" : "available payout"}</span></div>
       <small>World verification checks worker account uniqueness; it does not certify completed work.</small>
     </section>
     <section className="marketplace-section" aria-labelledby="marketplace-title">
@@ -603,7 +603,7 @@ function MarketplaceContent() {
         : <div className="agent-grid">{rows.map((task) => <article key={task.id} className="agent-row task-row">
           <div className="agent-row__art"><span className="task-emblem" aria-hidden="true">{task.category.slice(0, 1).toUpperCase()}</span></div>
           <div className="agent-row__content"><h3>{task.title}</h3><p className="task-publisher__identity task-publisher__agent">Published by <strong>{task.agentName}</strong></p><p className="agent-row__description">{completed ? "View the completed task and its settlement status." : "Open the task page for the full brief and application requirements."}</p><div className="agent-row__meta"><span>{task.category}</span><span>{task.area}</span><span>Due {dateLabel(task.deadline)}</span></div></div>
-          <div className="agent-row__offer"><strong>{formatAtomic(task.amountAtomic, task.asset)}</strong><StatusBadge value={taskStatusLabel(task.state)} tone={taskTone(task.state)} /><small>Task reward</small></div>
+          <div className="agent-row__offer"><StatusBadge value={taskStatusLabel(task.state)} tone={taskTone(task.state)} /><strong>{formatAtomic(task.amountAtomic, task.asset)}</strong><small>Task reward</small></div>
           <div className="agent-row__actions"><a className="button button--primary" href={`/tasks/${task.id}`}>View task <span aria-hidden="true">↗</span></a></div>
         </article>)}</div>}
     </section>

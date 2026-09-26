@@ -256,6 +256,11 @@ summary { cursor: pointer; padding: .8rem 0; min-height: 2.75rem; font-size: .84
 .owner-task-lifecycle__steps li[aria-current="step"] i { background: #d4b8ec; border-color: #d4b8ec; box-shadow: 0 0 0 4px rgb(212 184 236 / 10%); }
 .owner-task-lifecycle__note { margin: 16px 0 0; color: #aaa7b4; font-size: .72rem; line-height: 1.55; }
 .site-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .65rem 1.2rem; border-top: 1px solid var(--groundwork-border); color: #918f9b; font-size: .66rem; margin-top: 52px; padding-top: 16px; }
+.site-footer__socials { display: inline-flex; align-items: center; gap: 7px; }
+.site-footer__social-icon { display: inline-grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--groundwork-border); border-radius: 50%; background: var(--groundwork-surface); }
+.site-footer__social-icon svg { display: block; width: 13px; height: 13px; }
+.site-footer__social-icon--twitter { color: #55acee; }
+.site-footer__social-icon--telegram { color: #2aabee; }
 
 @media (max-width: 850px) {
   .topbar__inner { flex-wrap: wrap; }
