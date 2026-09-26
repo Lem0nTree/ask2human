@@ -22,18 +22,14 @@ export function SectionHeading({ eyebrow, title, description }: { eyebrow: strin
   return <div className="section-heading"><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2><p className="section-heading__description">{description}</p></div></div>;
 }
 
-export function LoadingState({ label, variant = "list" }: { label: string; variant?: "list" | "detail" | "profile" | "workspace" }) {
+export function LoadingState({ label, variant = "list" }: { label: string; variant?: "list" | "detail" | "inline" }) {
+  if (variant === "inline") return <span className="loading-state loading-state--inline" role="status" aria-label={label}><span className="skeleton-block skeleton-block--short" /></span>;
+
   return <div className={`loading-state loading-state--${variant}`} role="status" aria-label={label}>
     {variant === "detail" ? <>
       <div className="loading-state__detail-head"><span className="skeleton-block skeleton-block--heading" /><span className="skeleton-block skeleton-block--badge" /></div>
       <div className="loading-state__facts">{Array.from({ length: 6 }, (_, index) => <div className="loading-state__fact" key={index}><span className="skeleton-block skeleton-block--short" /><span className="skeleton-block skeleton-block--medium" /></div>)}</div>
       <div className="loading-state__copy"><span className="skeleton-block" /><span className="skeleton-block skeleton-block--wide" /><span className="skeleton-block skeleton-block--half" /></div>
-    </> : variant === "profile" ? <>
-      <div className="loading-state__profile-head"><span className="skeleton-block skeleton-block--heading" /><span className="skeleton-block skeleton-block--medium" /><span className="skeleton-block skeleton-block--badge" /></div>
-      <LoadingRows count={2} />
-    </> : variant === "workspace" ? <>
-      <div className="loading-state__panels">{Array.from({ length: 2 }, (_, index) => <div className="loading-state__panel" key={index}><span className="skeleton-block skeleton-block--medium" /><span className="skeleton-block" /><span className="skeleton-block skeleton-block--wide" /><span className="skeleton-block skeleton-block--button" /></div>)}</div>
-      <LoadingRows count={2} />
     </> : <LoadingRows count={3} />}
   </div>;
 }

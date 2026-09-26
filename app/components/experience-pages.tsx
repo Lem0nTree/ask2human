@@ -70,6 +70,13 @@ const MAX_EVIDENCE_BYTES = 4 * 1024 * 1024;
 const PENDING_PREFIX = "ask2human:pending-transaction:";
 const CATEGORIES = ["inspection", "delivery", "photography", "research", "audit", "other"];
 
+function updateMarketplaceFilter(name: "q" | "category", value: string) {
+  const url = new URL(window.location.href);
+  if (value) url.searchParams.set(name, value);
+  else url.searchParams.delete(name);
+  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
 function taskTone(state: string): "success" | "warning" | "danger" | "neutral" | "info" {
   if (["PAID", "FUNDED"].includes(state)) return "success";
   if (["OPEN", "SUBMITTED", "REVIEW"].includes(state)) return "info";
@@ -404,8 +411,8 @@ export function MarketplacePage() {
 function MarketplaceContent() {
   const controller = useExperienceController();
   const [rows, setRows] = useState<PublicTaskSummary[]>([]);
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("");
+  const [search, setSearch] = useState(() => typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("q") ?? "");
+  const [category, setCategory] = useState(() => typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("category") ?? "");
   const [loadError, setLoadError] = useState("");
   const [loadingTasks, setLoadingTasks] = useState(true);
   const requestSequence = useRef(0);
@@ -427,7 +434,7 @@ function MarketplaceContent() {
   }, [search, category]);
 
   useEffect(() => { void loadTasks(); }, [loadTasks]);
-  const categories = useMemo(() => [...new Set(rows.map((row) => row.category))].sort(), [rows]);
+  const categories = useMemo(() => [...new Set([...CATEGORIES, ...rows.map((row) => row.category)])].sort(), [rows]);
 
   return <main className="page-shell">
     <Feedback error={controller.error} notice={controller.notice} />
@@ -435,17 +442,17 @@ function MarketplaceContent() {
       <p className="eyebrow"><i />Human work, secured by escrow</p>
       <h1>Local tasks. <span>Human expertise.</span></h1>
       <p>Find work from local agents. Apply as an eligible worker, agree on exact terms, and track confirmed USDC payments.</p>
-      <div className="directory-collection-stats"><span><strong>{rows.length}</strong> open tasks</span><span className="testnet-dot" /> Mainnet USDC</div>
+      <div className="directory-collection-stats"><span>{loadingTasks ? <LoadingState label="Loading open task count…" variant="inline" /> : <strong>{rows.length}</strong>} open tasks</span><span className="testnet-dot" /> Mainnet USDC</div>
       <small>World verification checks worker account uniqueness; it does not certify completed work.</small>
     </section>
     <section className="marketplace-section" aria-labelledby="marketplace-title">
       <SectionHeading eyebrow="Marketplace" title="Find a task" description="Open task listings show the category, service area, reward, and deadline. Verify as a worker to read the full task brief and apply." />
       <div className="filter-panel" role="search">
-        <label className="search-field"><span aria-hidden="true">⌕</span><input aria-label="Search open tasks" type="search" placeholder="Search tasks, area, or category" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
-        <label className="select-field"><span>Category</span><select value={category} onChange={(event) => setCategory(event.target.value)}><option value="">All categories</option>{categories.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label className="search-field"><span aria-hidden="true">⌕</span><input aria-label="Search open tasks" type="search" placeholder="Search tasks, area, or category" value={search} onChange={(event) => { setSearch(event.target.value); updateMarketplaceFilter("q", event.target.value); }} /></label>
+        <label className="select-field"><span>Category</span><select value={category} onChange={(event) => { setCategory(event.target.value); updateMarketplaceFilter("category", event.target.value); }}><option value="">All categories</option>{categories.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
         <a className="button button--primary" href="/agents">Post a task</a>
       </div>
-      <div className="marketplace-results-heading"><span>{rows.length} {rows.length === 1 ? "task" : "tasks"}</span><span>Recently posted</span></div>
+      <div className="marketplace-results-heading"><span>{loadingTasks ? <LoadingState label="Loading task count…" variant="inline" /> : `${rows.length} ${rows.length === 1 ? "task" : "tasks"}`}</span><span>Recently posted</span></div>
       {loadingTasks ? <LoadingState label="Loading open tasks…" variant="list" /> : loadError ? <Callout title="Task listings unavailable" tone="danger">{loadError}</Callout> : rows.length === 0
         ? <EmptyState title="No open tasks right now">New requests appear here after an agent posts them. Check back later or set up an agent from your owner workspace.</EmptyState>
         : <div className="agent-grid">{rows.map((task) => <article key={task.id} className="agent-row task-row">
@@ -470,6 +477,7 @@ function TaskContent({ taskId }: { taskId: string }) {
   const controller = useExperienceController();
   const wallet = useWalletActions(controller);
   const [task, setTask] = useState<ExperienceTask | null>(null);
+  const [taskLoading, setTaskLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [evidenceUrl, setEvidenceUrl] = useState("");
   const [report, setReport] = useState("");
@@ -480,20 +488,30 @@ function TaskContent({ taskId }: { taskId: string }) {
   const [consentChecked, setConsentChecked] = useState(false);
   const [stars, setStars] = useState(5);
   const [scorePrepared, setScorePrepared] = useState(false);
+  const taskRequestSequence = useRef(0);
 
   const loadTask = useCallback(async () => {
+    const requestId = ++taskRequestSequence.current;
+    setTaskLoading(true);
     try {
       const result = await readExperience<{ task: ExperienceTask }>("task", { taskId });
+      if (requestId !== taskRequestSequence.current) return;
       setTask(result.task);
       if (result.task.rating && !result.task.rating.confirmedAt) setStars(result.task.rating.stars);
       setLoadError("");
       setPending(readPending(taskId));
     } catch (cause) {
-      setLoadError(cause instanceof Error ? cause.message : "Task details are unavailable.");
+      if (requestId === taskRequestSequence.current) setLoadError(cause instanceof Error ? cause.message : "Task details are unavailable.");
+    } finally {
+      if (requestId === taskRequestSequence.current) setTaskLoading(false);
     }
   }, [taskId]);
 
-  useEffect(() => { void loadTask(); }, [loadTask]);
+  useEffect(() => {
+    setTask(null);
+    setLoadError("");
+    void loadTask();
+  }, [loadTask]);
   useEffect(() => { setScorePrepared(false); }, [taskId]);
   useEffect(() => {
     if (!file) { setPreviewUrl(""); return; }
@@ -647,7 +665,7 @@ function TaskContent({ taskId }: { taskId: string }) {
   return <main className="page-shell">
     <a className="task-back-link" href="/">← Back to open tasks</a>
     <Feedback error={controller.error || loadError || controller.loadError} notice={controller.notice} />
-    {!task && !loadError ? <LoadingState label="Loading task details…" variant="detail" /> : !task ? <EmptyState title="Task unavailable">This task may have been removed, or its details are not available.</EmptyState> : <>
+    {!task && taskLoading ? <section className="detail-section task-detail task-detail--loading"><p className="eyebrow">Task details</p><h1>Task details</h1><p>Task requirements, reward, and current status are loading.</p><LoadingState label="Loading task details…" variant="detail" /></section> : !task ? <EmptyState title="Task unavailable">This task may have been removed, or its details are not available.</EmptyState> : <>
       <section className="detail-section task-detail">
         <div className="detail-head"><div><p className="eyebrow">Task details</p><h1>{task.title}</h1></div><StatusBadge value={task.state} tone={taskTone(task.state)} /></div>
         <div className="task-facts"><div><span>Category</span><strong>{task.category}</strong></div><div><span>Area</span><strong>{task.area}</strong></div><div><span>Task amount</span><strong>{formatAtomic(task.amountAtomic, task.asset)}</strong></div><div><span>Deadline</span><strong>{dateLabel(task.deadline)}</strong></div><div><span>Worker</span><strong>{task.worker ? <a href={task.worker.profilePath}>{task.worker.displayName}</a> : "Not selected"}</strong></div><div><span>Escrow state</span><strong>{task.settlement?.status ?? "Not funded"}</strong></div></div>
@@ -745,22 +763,24 @@ function WorkContent() {
   const wallet = useWalletActions(controller);
   const [dashboard, setDashboard] = useState<WorkDashboard | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardError, setDashboardError] = useState("");
   const [idKitStart, setIdKitStart] = useState<IDKitStart | null>(null);
 
   const workerId = controller.browser?.session.worker?.id;
   const loadDashboard = useCallback(async () => {
-    if (!workerId) { setDashboard(null); setDashboardLoading(false); return; }
+    if (!workerId) { setDashboard(null); setDashboardLoading(false); setDashboardError(""); return; }
     setDashboard(null);
+    setDashboardError("");
     setDashboardLoading(true);
     try {
       const result = await readExperience<{ dashboard: WorkDashboard }>("work");
       setDashboard(result.dashboard);
     } catch (cause) {
-      controller.setError(cause instanceof Error ? cause.message : "Work history is unavailable.");
+      setDashboardError(cause instanceof Error ? cause.message : "Work history is unavailable.");
     } finally {
       setDashboardLoading(false);
     }
-  }, [workerId, controller.setError]);
+  }, [workerId]);
 
   useEffect(() => { void loadDashboard(); }, [loadDashboard]);
 
@@ -796,26 +816,64 @@ function WorkContent() {
 
   const worker = controller.browser?.session.worker;
   const totals = dashboard?.totals;
-  const dashboardPending = !!worker && (dashboardLoading || (!dashboard && !controller.error && !controller.loadError));
-  if (!controller.browser && !controller.loadError) return <main className="page-shell"><LoadingState label="Loading your work…" variant="workspace" /></main>;
+  const dashboardPending = !!worker && (dashboardLoading || (!dashboard && !dashboardError));
+  const sessionPending = !controller.browser && !controller.loadError;
 
   return <main className="page-shell">
     <section className="directory-hero directory-hero--compact"><p className="eyebrow">Worker workspace</p><h1>Applications. <span>Delivery. Earnings.</span></h1><p>See your selected work and count earnings from confirmed settlement receipts, not your wallet balance or a capped task feed.</p></section>
-    <Feedback error={controller.error || controller.loadError} notice={controller.notice} />
-    {!worker ? <section className="section-block workspace-grid"><form className="creator-wizard" onSubmit={(event) => void createWorker(event)}><p className="eyebrow">Worker profile</p><h2>Create or recover your profile</h2><label>Display name<input name="displayName" required maxLength={80} placeholder="Name shown to task owners" /></label><label>Primary category<input name="category" required maxLength={60} pattern="[a-zA-Z0-9][a-zA-Z0-9 _-]*" placeholder="inspection" /></label><label>Service area<input name="area" required maxLength={100} placeholder="District or region" /></label><label>Skills, separated by commas<input name="skills" maxLength={400} placeholder="photo documentation, field checks" /></label><button className="button button--primary" disabled={controller.busy}>Create worker profile</button></form><div className="detail-section"><p className="eyebrow">Returning worker</p><h2>Recover an existing profile</h2><p>Connect the wallet previously linked to your worker account that passed the configured identity check, then sign a new account recovery challenge.</p><button className="button" disabled={controller.busy || !wallet.account} onClick={() => void wallet.verifyWallet("recover_worker")}>{wallet.account ? "Recover with connected wallet" : "Connect wallet to recover"}</button></div></section>
+    <Feedback error={controller.error || controller.loadError || dashboardError} notice={controller.notice} />
+    {sessionPending ? <section className="detail-section workspace-session"><p className="eyebrow">Worker profile</p><h2>Checking your account</h2><p>Your profile and account-specific actions will appear here when the session check completes.</p><LoadingState label="Checking worker session…" variant="inline" /></section>
+      : !controller.browser ? null
+      : !worker ? <section className="section-block workspace-grid"><form className="creator-wizard" onSubmit={(event) => void createWorker(event)}><p className="eyebrow">Worker profile</p><h2>Create or recover your profile</h2><label>Display name<input name="displayName" required maxLength={80} placeholder="Name shown to task owners" /></label><label>Primary category<input name="category" required maxLength={60} pattern="[a-zA-Z0-9][a-zA-Z0-9 _-]*" placeholder="inspection" /></label><label>Service area<input name="area" required maxLength={100} placeholder="District or region" /></label><label>Skills, separated by commas<input name="skills" maxLength={400} placeholder="photo documentation, field checks" /></label><button className="button button--primary" disabled={controller.busy}>Create worker profile</button></form><div className="detail-section"><p className="eyebrow">Returning worker</p><h2>Recover an existing profile</h2><p>Connect the wallet previously linked to your worker account that passed the configured identity check, then sign a new account recovery challenge.</p><button className="button" disabled={controller.busy || !wallet.account} onClick={() => void wallet.verifyWallet("recover_worker")}>{wallet.account ? "Recover with connected wallet" : "Connect wallet to recover"}</button></div></section>
       : <>
         <section className="detail-section worker-profile-summary"><div><p className="eyebrow">Your profile</p><h2>{worker.displayName}</h2><p>{worker.category} · {worker.area}</p></div><StatusBadge value={worker.status === "VERIFIED" ? "Eligible" : worker.status} tone={worker.status === "VERIFIED" ? "success" : "warning"} /><a className="button" href={`/workers/${worker.id}`}>Public profile</a></section>
         <section className="section-block workspace-grid">
           <div className="detail-section"><p className="eyebrow">Wallet and identity</p><h3>Worker eligibility</h3><p>Link the payout wallet you control with Slush or another Sui wallet. {worldEnvironmentDisclosure(controller.browser?.config.worldIdentityEnvironment ?? null)} checks this worker account for uniqueness; it does not verify delivery quality.</p><dl className="profile-facts"><div><dt>Payout wallet</dt><dd>{shortAddress(worker.walletAddress)}</dd></div><div><dt>World check</dt><dd>{worldCheckStatus(controller.browser?.config.worldIdentityEnvironment ?? null, worker.worldVerified)}</dd></div></dl><div className="detail-actions"><button className="button" disabled={controller.busy || !wallet.account} onClick={() => void wallet.verifyWallet("worker")}>{worker.walletVerified ? "Verify linked wallet" : wallet.account ? "Link connected wallet" : "Connect wallet to link"}</button><button className="button button--primary" disabled={controller.busy || !worker.walletVerified || !controller.browser?.config.workerVerificationConfigured || worker.worldVerified} onClick={() => void startIDKit()}>{worker.worldVerified ? "Identity check complete" : controller.browser?.config.worldIdentityEnvironment && controller.browser.config.worldIdentityEnvironment !== "production" ? `Start ${controller.browser.config.worldIdentityEnvironment} identity check` : "Start World identity check"}</button></div><small>This check establishes uniqueness only. It does not rate completed work or verify delivery evidence.</small></div>
           <div className="detail-section"><p className="eyebrow">Current account</p><h3>Connected wallet</h3><p>{wallet.account ? shortAddress(wallet.account.address) : "No wallet connected"}</p><p>Use the same linked address to submit delivery and receive settlement. If you cancel a wallet request, the frozen transaction remains ready for retry.</p></div>
         </section>
-        {dashboardPending ? <section className="section-block"><LoadingState label="Loading applications and earnings…" variant="workspace" /></section> : dashboard && <>
-          <section className="section-block"><SectionHeading eyebrow="Earnings" title="Confirmed payment history" description="Mainnet USDC net earnings include only confirmed seller receipts. Pending escrow is shown separately." /><div className="stat-grid"><article><span>Lifetime gross</span><strong>{formatAtomic(totals!.lifetimeGrossAtomic, totals!.asset)}</strong></article><article><span>Fees</span><strong>{formatAtomic(totals!.lifetimeFeeAtomic, totals!.asset)}</strong></article><article><span>Lifetime net</span><strong>{formatAtomic(totals!.lifetimeNetAtomic, totals!.asset)}</strong></article><article><span>This month net</span><strong>{formatAtomic(totals!.monthNetAtomic, totals!.asset)}</strong></article><article><span>Pending escrow</span><strong>{formatAtomic(totals!.pendingAtomic, totals!.asset)}</strong></article></div>
-            {dashboard.legacyReadOnly.length > 0 && <p className="muted-copy">Historical SUI testnet records ({dashboard.legacyReadOnly.map((item) => `${item.recordCount} ${item.asset.symbol} record${item.recordCount === 1 ? "" : "s"}`).join(", ")}) are read-only and excluded from USDC earnings.</p>}
+          <section className="section-block">
+            <SectionHeading eyebrow="Earnings" title="Confirmed payment history" description="Mainnet USDC net earnings include only confirmed seller receipts. Pending escrow is shown separately." />
+            {dashboardPending ? (
+              <div className="stat-grid" role="status" aria-label="Loading earnings">
+                <article><span>Lifetime gross</span><LoadingState label="Loading lifetime gross" variant="inline" /></article>
+                <article><span>Fees</span><LoadingState label="Loading fees" variant="inline" /></article>
+                <article><span>Lifetime net</span><LoadingState label="Loading lifetime net" variant="inline" /></article>
+                <article><span>This month net</span><LoadingState label="Loading this month net" variant="inline" /></article>
+                <article><span>Pending escrow</span><LoadingState label="Loading pending escrow" variant="inline" /></article>
+              </div>
+            ) : dashboardError ? (
+              <p className="muted-copy">Earnings are unavailable until work history can be loaded.</p>
+            ) : dashboard ? (
+              <>
+                <div className="stat-grid">
+                  <article><span>Lifetime gross</span><strong>{formatAtomic(totals!.lifetimeGrossAtomic, totals!.asset)}</strong></article>
+                  <article><span>Fees</span><strong>{formatAtomic(totals!.lifetimeFeeAtomic, totals!.asset)}</strong></article>
+                  <article><span>Lifetime net</span><strong>{formatAtomic(totals!.lifetimeNetAtomic, totals!.asset)}</strong></article>
+                  <article><span>This month net</span><strong>{formatAtomic(totals!.monthNetAtomic, totals!.asset)}</strong></article>
+                  <article><span>Pending escrow</span><strong>{formatAtomic(totals!.pendingAtomic, totals!.asset)}</strong></article>
+                </div>
+                {dashboard.legacyReadOnly.length > 0 && <p className="muted-copy">Historical SUI testnet records ({dashboard.legacyReadOnly.map((item) => `${item.recordCount} ${item.asset.symbol} record${item.recordCount === 1 ? "" : "s"}`).join(", ")}) are read-only and excluded from USDC earnings.</p>}
+              </>
+            ) : null}
           </section>
-          <section className="section-block"><SectionHeading eyebrow="Applications and work" title="Tasks you applied for or completed" description="Open each detail page for the exact delivery checklist, current escrow state and next action." />{dashboard.tasks.length === 0 ? <EmptyState title="No applications or assigned work yet">Browse open requests and apply after completing the worker identity and wallet checks.</EmptyState> : <div className="experience-list">{dashboard.tasks.map((task) => <article className="experience-row" key={task.id}><div><strong>{task.title}</strong><small>{task.category} · {task.area} · Due {dateLabel(task.deadline)}</small></div><StatusBadge value={task.state === "OPEN" ? task.applicationStatus ?? "OPEN" : task.state} tone={taskTone(task.state)} /><strong>{formatAtomic(task.amountAtomic, task.asset)}</strong><a className="button button--small" href={`/tasks/${task.id}`}>Open task</a></article>)}</div>}</section>
-          <section className="section-block"><SectionHeading eyebrow="Receipts" title="Settlement ledger" description="Actual fee and net amounts appear after receipt confirmation. Pending rows are not counted as earned." />{dashboard.payments.length === 0 ? <EmptyState title="No escrow receipts yet">A confirmed settlement will appear here when t2000 reports its receipt.</EmptyState> : <div className="experience-list">{dashboard.payments.map((payment, index) => <article className="experience-row experience-row--receipt" key={`${payment.taskId}-${index}`}><div><strong>{payment.title}</strong><small>{payment.asset.network} · {payment.settledAt ? dateLabel(payment.settledAt) : `Settlement ${payment.settlementStatus.toLowerCase()}`}</small></div><StatusBadge value={payment.state} tone={taskTone(payment.state)} /><span>Gross {formatAtomic(payment.grossAtomic, payment.asset)}</span><span>Fee {payment.feeAtomic == null ? "Pending" : formatAtomic(payment.feeAtomic, payment.asset)}</span><strong>Net {payment.netAtomic == null ? "Pending" : formatAtomic(payment.netAtomic, payment.asset)}</strong>{payment.digest && <a href={`/tasks/${payment.taskId}`} className="button button--small">View receipt</a>}</article>)}</div>}</section>
-        </>}
+          <section className="section-block">
+            <SectionHeading eyebrow="Applications and work" title="Tasks you applied for or completed" description="Open each detail page for the exact delivery checklist, current escrow state and next action." />
+            {dashboardPending ? <LoadingState label="Loading applications and work…" variant="list" />
+              : dashboardError ? <p className="muted-copy">Applications are unavailable until work history can be loaded.</p>
+              : dashboard ? dashboard.tasks.length === 0
+                ? <EmptyState title="No applications or assigned work yet">Browse open requests and apply after completing the worker identity and wallet checks.</EmptyState>
+                : <div className="experience-list">{dashboard.tasks.map((task) => <article className="experience-row" key={task.id}><div><strong>{task.title}</strong><small>{task.category} · {task.area} · Due {dateLabel(task.deadline)}</small></div><StatusBadge value={task.state === "OPEN" ? task.applicationStatus ?? "OPEN" : task.state} tone={taskTone(task.state)} /><strong>{formatAtomic(task.amountAtomic, task.asset)}</strong><a className="button button--small" href={`/tasks/${task.id}`}>Open task</a></article>)}</div>
+                : null}
+          </section>
+          <section className="section-block">
+            <SectionHeading eyebrow="Receipts" title="Settlement ledger" description="Actual fee and net amounts appear after receipt confirmation. Pending rows are not counted as earned." />
+            {dashboardPending ? <LoadingState label="Loading settlement receipts…" variant="list" />
+              : dashboardError ? <p className="muted-copy">Receipts are unavailable until work history can be loaded.</p>
+              : dashboard ? dashboard.payments.length === 0
+                ? <EmptyState title="No escrow receipts yet">A confirmed settlement will appear here when t2000 reports its receipt.</EmptyState>
+                : <div className="experience-list">{dashboard.payments.map((payment, index) => <article className="experience-row experience-row--receipt" key={`${payment.taskId}-${index}`}><div><strong>{payment.title}</strong><small>{payment.asset.network} · {payment.settledAt ? dateLabel(payment.settledAt) : `Settlement ${payment.settlementStatus.toLowerCase()}`}</small></div><StatusBadge value={payment.state} tone={taskTone(payment.state)} /><span>Gross {formatAtomic(payment.grossAtomic, payment.asset)}</span><span>Fee {payment.feeAtomic == null ? "Pending" : formatAtomic(payment.feeAtomic, payment.asset)}</span><strong>Net {payment.netAtomic == null ? "Pending" : formatAtomic(payment.netAtomic, payment.asset)}</strong>{payment.digest && <a href={`/tasks/${payment.taskId}`} className="button button--small">View receipt</a>}</article>)}</div>
+                : null}
+          </section>
       </>}
     {idKitStart && <><Callout title={`${worldEnvironmentDisclosure(idKitStart.request.environment)}`} tone="info">This environment checks that the worker account is unique. It does not certify work quality or prove that evidence is authentic.</Callout><IDKitRequestWidget open onOpenChange={(open) => { if (!open) setIdKitStart(null); }} app_id={idKitStart.request.app_id} action={idKitStart.request.action} rp_context={idKitStart.request.rp_context} environment={idKitStart.request.environment} allow_legacy_proofs={false} preset={proofOfHuman({ signal: idKitStart.request.signal })} handleVerify={completeIDKit} onSuccess={() => setIdKitStart(null)} onError={() => controller.setError("World could not complete this identity check. Start a fresh request and try again.")} /></>}
   </main>;
@@ -827,20 +885,31 @@ export function WorkerPage({ workerId }: { workerId: string }) {
 
 function PublicWorkerContent({ workerId }: { workerId: string }) {
   const [worker, setWorker] = useState<PublicWorker | null>(null);
+  const [workerLoading, setWorkerLoading] = useState(true);
   const [error, setError] = useState("");
   const [worldEnvironment, setWorldEnvironment] = useState<"production" | "staging" | "sandbox" | null>(null);
   useEffect(() => {
     let active = true;
-    void readExperience<{ worker: PublicWorker }>("worker", { workerId }).then((result) => { if (active) setWorker(result.worker); }).catch((cause) => setError(cause instanceof Error ? cause.message : "Worker profile is unavailable."));
+    setWorker(null);
+    setError("");
+    setWorkerLoading(true);
+    void readExperience<{ worker: PublicWorker }>("worker", { workerId }).then((result) => { if (active) setWorker(result.worker); }).catch((cause) => { if (active) setError(cause instanceof Error ? cause.message : "Worker profile is unavailable."); }).finally(() => { if (active) setWorkerLoading(false); });
     void readExperienceState().then((state) => { if (active) setWorldEnvironment(state.config.worldIdentityEnvironment); }).catch(() => {});
     return () => { active = false; };
   }, [workerId]);
-  return <main className="page-shell">{error ? <Callout title="Worker profile unavailable" tone="danger">{error}</Callout> : !worker ? <LoadingState label="Loading worker profile…" variant="profile" /> : <>
-    <section className="directory-hero directory-hero--compact"><p className="eyebrow">Worker profile · account uniqueness check</p><h1>{worker.displayName}</h1><p>{worker.category} · {worker.area}</p><div className="directory-collection-stats"><StatusBadge value={worldCheckBadge(worldEnvironment, worker.worldVerified)} tone={worker.worldVerified ? "success" : "warning"} /><span>{worker.skills.length ? worker.skills.join(" · ") : "No skills listed"}</span></div><small>Identity checks are separate from public ratings and completed-work records.</small></section>
-    <section className="section-block"><div className="profile-rating-summary"><div><p className="eyebrow">Public rating</p>{worker.averageRating == null ? <strong>No reviews yet</strong> : <strong>{worker.averageRating.toFixed(2)} / 5 · {worker.reviewCount} review{worker.reviewCount === 1 ? "" : "s"}</strong>}</div><small>{worker.ratingSource === "t2000" ? "Rating source: t2000 on-chain reputation" : "Ratings appear after an eligible buyer submits one"}</small></div></section>
-    <section className="section-block"><SectionHeading eyebrow="Completed work" title="Recent public task summaries" description="These summaries contain no delivery report, evidence image or precise location." />{worker.recentTasks.length === 0 ? <EmptyState title="No completed tasks yet">Completed public task summaries appear after a settlement receipt is confirmed.</EmptyState> : <div className="experience-list">{worker.recentTasks.map((task) => <article key={task.id} className="experience-row"><div><strong>{task.title}</strong><small>{task.category} · Completed {dateLabel(task.completedAt)}</small></div><span>{formatAtomic(task.amountAtomic, task.asset)}</span><a className="button button--small" href={`/tasks/${task.id}`}>Task record</a></article>)}</div>}</section>
+  return <main className="page-shell">
+    {error && <Callout title="Worker profile unavailable" tone="danger">{error}</Callout>}
+    <section className="directory-hero directory-hero--compact">
+      <p className="eyebrow">Worker profile · account uniqueness check</p>
+      <h1>{worker?.displayName ?? "Worker profile"}</h1>
+      <p>{worker ? `${worker.category} · ${worker.area}` : "Public eligibility, ratings, and completed-work summaries."}</p>
+      <div className="directory-collection-stats">{worker ? <><StatusBadge value={worldCheckBadge(worldEnvironment, worker.worldVerified)} tone={worker.worldVerified ? "success" : "warning"} /><span>{worker.skills.length ? worker.skills.join(" · ") : "No skills listed"}</span></> : workerLoading ? <LoadingState label="Loading worker summary…" variant="inline" /> : null}</div>
+      <small>Identity checks are separate from public ratings and completed-work records.</small>
+    </section>
+    <section className="section-block"><div className="profile-rating-summary"><div><p className="eyebrow">Public rating</p>{worker ? worker.averageRating == null ? <strong>No reviews yet</strong> : <strong>{worker.averageRating.toFixed(2)} / 5 · {worker.reviewCount} review{worker.reviewCount === 1 ? "" : "s"}</strong> : workerLoading ? <LoadingState label="Loading public rating…" variant="inline" /> : <strong>Unavailable</strong>}</div><small>{worker ? worker.ratingSource === "t2000" ? "Rating source: t2000 on-chain reputation" : "Ratings appear after an eligible buyer submits one" : "Ratings are public only after an eligible buyer submits a confirmed rating."}</small></div></section>
+    <section className="section-block"><SectionHeading eyebrow="Completed work" title="Recent public task summaries" description="These summaries contain no delivery report, evidence image or precise location." />{workerLoading ? <LoadingState label="Loading completed work…" variant="list" /> : worker?.recentTasks.length === 0 ? <EmptyState title="No completed tasks yet">Completed public task summaries appear after a settlement receipt is confirmed.</EmptyState> : worker && <div className="experience-list">{worker.recentTasks.map((task) => <article key={task.id} className="experience-row"><div><strong>{task.title}</strong><small>{task.category} · Completed {dateLabel(task.completedAt)}</small></div><span>{formatAtomic(task.amountAtomic, task.asset)}</span><a className="button button--small" href={`/tasks/${task.id}`}>Task record</a></article>)}</div>}</section>
     <a className="button button--primary" href="/">Browse open tasks</a>
-  </>}</main>;
+  </main>;
 }
 
 export function AgentsPage() {
@@ -852,26 +921,30 @@ function AgentsContent() {
   const wallet = useWalletActions(controller);
   const [dashboard, setDashboard] = useState<OwnerDashboard | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardError, setDashboardError] = useState("");
   const [selectedTask, setSelectedTask] = useState("");
   const [applicantLists, setApplicantLists] = useState<Record<string, ApplicantList>>({});
+  const [applicantLoading, setApplicantLoading] = useState<Record<string, boolean>>({});
+  const [applicantErrors, setApplicantErrors] = useState<Record<string, string>>({});
   const [createdKey, setCreatedKey] = useState("");
   const [agentId, setAgentId] = useState("");
 
   const ownerId = controller.browser?.session.owner?.id;
   const loadDashboard = useCallback(async () => {
-    if (!ownerId) { setDashboard(null); setDashboardLoading(false); return; }
+    if (!ownerId) { setDashboard(null); setDashboardLoading(false); setDashboardError(""); return; }
     setDashboard(null);
+    setDashboardError("");
     setDashboardLoading(true);
     try {
       const result = await readExperience<{ dashboard: OwnerDashboard }>("agents");
       setDashboard(result.dashboard);
       setAgentId((current) => current || result.dashboard.agents[0]?.id || "");
     } catch (cause) {
-      controller.setError(cause instanceof Error ? cause.message : "Owner workspace is unavailable.");
+      setDashboardError(cause instanceof Error ? cause.message : "Owner workspace is unavailable.");
     } finally {
       setDashboardLoading(false);
     }
-  }, [ownerId, controller.setError]);
+  }, [ownerId]);
 
   useEffect(() => { void loadDashboard(); }, [loadDashboard]);
 
@@ -923,11 +996,15 @@ function AgentsContent() {
   async function showApplicants(taskId: string) {
     if (selectedTask === taskId) { setSelectedTask(""); return; }
     setSelectedTask(taskId);
+    setApplicantLoading((current) => ({ ...current, [taskId]: true }));
+    setApplicantErrors((current) => ({ ...current, [taskId]: "" }));
     try {
       const result = await readExperience<{ applicants: ApplicantList }>("applicants", { taskId });
       setApplicantLists((current) => ({ ...current, [taskId]: result.applicants }));
     } catch (cause) {
-      controller.setError(cause instanceof Error ? cause.message : "Applicants are unavailable.");
+      setApplicantErrors((current) => ({ ...current, [taskId]: cause instanceof Error ? cause.message : "Applicants are unavailable." }));
+    } finally {
+      setApplicantLoading((current) => ({ ...current, [taskId]: false }));
     }
   }
 
@@ -944,30 +1021,49 @@ function AgentsContent() {
   const owner = controller.browser?.session.owner;
   const agents = dashboard?.agents ?? [];
   const activeAgent = agents.find((agent) => agent.id === agentId) ?? agents[0] ?? null;
-  const dashboardPending = !!owner && (dashboardLoading || (!dashboard && !controller.error && !controller.loadError));
+  const dashboardPending = !!owner && (dashboardLoading || (!dashboard && !dashboardError));
+  const sessionPending = !controller.browser && !controller.loadError;
   const queryTaskId = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("task") ?? "";
   useEffect(() => { if (queryTaskId && dashboard?.tasks.some((task) => task.id === queryTaskId)) void showApplicants(queryTaskId); }, [queryTaskId, dashboard?.tasks]);
 
-  if (!controller.browser && !controller.loadError) return <main className="page-shell"><LoadingState label="Loading owner workspace…" variant="workspace" /></main>;
-
   return <main className="page-shell">
     <section className="directory-hero directory-hero--compact"><p className="eyebrow">Agent workspace</p><h1>Post work. <span>Choose a human.</span></h1><p>Agents set categories and spend limits; task owners review eligible applicants and select one before requesting funding approval.</p></section>
-    <Feedback error={controller.error || controller.loadError} notice={controller.notice} />
-    {!owner ? <section className="detail-section owner-login"><div><p className="eyebrow">Owner account</p><h2>Sign in to manage agents</h2><p>World ID for Agents authenticates the owner. Escrow transactions still require a separately linked Slush or compatible wallet.</p></div><div className="owner-login__actions"><button className="button button--primary" disabled={controller.busy || !controller.browser?.config.ownerAuthenticationConfigured} onClick={() => void wallet.beginOwnerLogin()}>{controller.browser?.config.ownerAuthenticationConfigured ? "Continue with World" : "Owner sign-in unavailable"}</button><button className="button" disabled={controller.busy || !wallet.account} onClick={() => void wallet.verifyWallet("recover_owner")}>{wallet.account ? "Recover owner by wallet" : "Connect wallet to recover"}</button></div></section> : dashboardPending ? <LoadingState label="Loading agents and tasks…" variant="workspace" /> : <>
+    <Feedback error={controller.error || controller.loadError || dashboardError} notice={controller.notice} />
+    {sessionPending ? <section className="detail-section owner-login"><div><p className="eyebrow">Owner account</p><h2>Checking your session</h2><p>Sign in as an agent owner to create agent policies and post tasks. The account status is loading.</p><LoadingState label="Checking owner session…" variant="inline" /><div className="owner-login__actions"><button className="button button--primary" disabled>Continue with World</button><button className="button" disabled>Recover owner by wallet</button></div></div></section>
+      : !controller.browser ? null
+      : !owner ? <section className="detail-section owner-login"><div><p className="eyebrow">Owner account</p><h2>Sign in to manage agents</h2><p>World ID for Agents authenticates the owner. Escrow transactions still require a separately linked Slush or compatible wallet.</p></div><div className="owner-login__actions"><button className="button button--primary" disabled={controller.busy || !controller.browser.config.ownerAuthenticationConfigured} onClick={() => void wallet.beginOwnerLogin()}>{controller.browser.config.ownerAuthenticationConfigured ? "Continue with World" : "Owner sign-in unavailable"}</button><button className="button" disabled={controller.busy || !wallet.account} onClick={() => void wallet.verifyWallet("recover_owner")}>{wallet.account ? "Recover owner by wallet" : "Connect wallet to recover"}</button></div></section> : <>
       <section className="detail-section owner-account"><div><p className="eyebrow">Signed-in owner</p><h2>Owner session active</h2><p>Owner wallet: {shortAddress(owner.walletAddress)} · {owner.walletVerified ? "linked" : "not linked"}</p></div><div className="detail-actions"><button className="button" disabled={controller.busy || !wallet.account} onClick={() => void wallet.verifyWallet("owner")}>{owner.walletVerified ? "Verify linked wallet" : wallet.account ? "Link connected wallet" : "Connect wallet to link"}</button></div></section>
       <section className="section-block owner-columns">
         <form className="creator-wizard" onSubmit={(event) => void createAgent(event)}><p className="eyebrow">Agent policy</p><h2>Create an agent</h2><label>Agent name<input name="name" required maxLength={80} placeholder="Field operations" /></label><label>Allowed categories, comma separated<input name="categories" required maxLength={500} placeholder="inspection, photography" /></label><div className="form-two"><label>Maximum task amount (USDC)<input name="maxTask" required inputMode="decimal" placeholder="2.00" /></label><label>Total budget (USDC)<input name="totalBudget" required inputMode="decimal" placeholder="25.00" /></label></div><small>Budget fields are policy limits in atomic USDC, not escrow deposits.</small><button className="button button--primary" disabled={controller.busy}>Create agent policy</button></form>
-        <form className="creator-wizard task-create-form" onSubmit={(event) => void createTask(event)}><p className="eyebrow">Task request</p><h2>Post a task</h2>{agents.length === 0 ? <p>Create an agent policy first; tasks use its category and budget limits.</p> : <><label>Agent<select value={activeAgent?.id ?? ""} onChange={(event) => setAgentId(event.currentTarget.value)}>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name} · {formatAtomic(agent.availableAtomic, agent.asset)} available</option>)}</select></label><label>Title<input name="title" required maxLength={120} placeholder="Photograph three public entrances" /></label><label>Task brief<textarea name="brief" required maxLength={4000} placeholder="Include task requirements. Keep precise private access details out of the public area field." /></label><div className="form-two"><label>Category<select name="category" required defaultValue=""><option value="" disabled>Choose a permitted category</option>{(activeAgent?.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label>Public service area<input name="area" required maxLength={120} placeholder="District or town" /></label></div><label>Completion checklist<textarea name="checklist" required maxLength={2400} placeholder="One observable requirement per line" /></label><div className="form-two"><label>Gross amount (USDC)<input name="amount" required inputMode="decimal" placeholder="1.25" /></label><label>Deadline<input name="deadline" required type="datetime-local" /></label></div><div className="form-two"><label>Review window (minutes)<input name="reviewWindowMinutes" type="number" min={1} max={720} defaultValue={5} /></label><label>Worker share if rejected (%)<input name="rejectSplitPercent" type="number" min={0} max={100} defaultValue={50} /></label></div><small>On rejection, your percentage is the worker’s share before t2000 fees. ask2human converts it to the buyer-share basis used by t2000. Terms are frozen in the owner’s approval and funding transaction.</small><button className="button button--primary" disabled={controller.busy || !activeAgent}>Post USDC task</button></>}</form>
+        <form className="creator-wizard task-create-form" onSubmit={(event) => void createTask(event)}><p className="eyebrow">Task request</p><h2>Post a task</h2><label>Agent<select disabled={dashboardPending || !!dashboardError || agents.length === 0} value={activeAgent?.id ?? ""} onChange={(event) => setAgentId(event.currentTarget.value)}>{dashboardPending ? <option value="">Loading agent policies…</option> : dashboardError ? <option value="">Agent policies unavailable</option> : agents.length === 0 ? <option value="">Create an agent policy first</option> : agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name} · {formatAtomic(agent.availableAtomic, agent.asset)} available</option>)}</select></label>{!dashboardPending && !dashboardError && agents.length === 0 && <p>Create an agent policy first; tasks use its category and budget limits.</p>}{dashboardError && <p>Agent policies are unavailable right now.</p>}<label>Title<input name="title" required maxLength={120} placeholder="Photograph three public entrances" /></label><label>Task brief<textarea name="brief" required maxLength={4000} placeholder="Include task requirements. Keep precise private access details out of the public area field." /></label><div className="form-two"><label>Category<select name="category" required disabled={!activeAgent} defaultValue=""><option value="" disabled>Choose a permitted category</option>{(activeAgent?.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label>Public service area<input name="area" required maxLength={120} placeholder="District or town" /></label></div><label>Completion checklist<textarea name="checklist" required maxLength={2400} placeholder="One observable requirement per line" /></label><div className="form-two"><label>Gross amount (USDC)<input name="amount" required inputMode="decimal" placeholder="1.25" /></label><label>Deadline<input name="deadline" required type="datetime-local" /></label></div><div className="form-two"><label>Review window (minutes)<input name="reviewWindowMinutes" type="number" min={1} max={720} defaultValue={5} /></label><label>Worker share if rejected (%)<input name="rejectSplitPercent" type="number" min={0} max={100} defaultValue={50} /></label></div><small>On rejection, your percentage is the worker’s share before t2000 fees. ask2human converts it to the buyer-share basis used by t2000. Terms are frozen in the owner’s approval and funding transaction.</small><button className="button button--primary" disabled={controller.busy || dashboardPending || !!dashboardError || !activeAgent}>Post USDC task</button></form>
       </section>
       {createdKey && <Callout title="Copy the agent API key now" tone="warning"><p>This bearer key is shown once. Store it in your agent secret manager; it is not saved in the browser state.</p><pre>{createdKey}</pre><button className="button button--small" onClick={() => void navigator.clipboard.writeText(createdKey)}>Copy key</button><button className="button button--small" onClick={() => setCreatedKey("")}>Dismiss</button></Callout>}
-      <section className="section-block"><SectionHeading eyebrow="Budgets" title="Agent spend limits" description="Available equals total budget less reservations and confirmed spend." />{agents.length === 0 ? <EmptyState title="No agent policies yet">Create the first agent above to define permitted categories and task limits.</EmptyState> : <div className="agent-summary-grid">{agents.map((agent) => <article key={agent.id}><strong>{agent.name}</strong><span>{agent.categories.join(", ")}</span><small>Available {formatAtomic(agent.availableAtomic, agent.asset)} · reserved {formatAtomic(agent.reservedAtomic, agent.asset)} · spent {formatAtomic(agent.spentAtomic, agent.asset)}</small><small>Total {formatAtomic(agent.totalBudgetAtomic, agent.asset)} · per-task cap {formatAtomic(agent.maxTaskAtomic, agent.asset)}</small></article>)}</div>}</section>
-      <section className="section-block"><SectionHeading eyebrow="Task administration" title="Applicants and active tasks" description="Open an applicant’s public profile before selection. Selection closes competing applications atomically." />{dashboard?.tasks.length ? <div className="experience-list">{dashboard.tasks.map((task) => <article className="experience-row experience-row--task" key={task.id}><div><strong>{task.title}</strong><small>{task.category} · {task.area} · {task.worker?.displayName ?? "No worker selected"}</small></div><StatusBadge value={task.state} tone={taskTone(task.state)} /><strong>{formatAtomic(task.amountAtomic, task.asset)}</strong><a className="button button--small" href={`/tasks/${task.id}`}>Task details</a>{task.state === "OPEN" && <button className="button button--small" onClick={() => void showApplicants(task.id)}>{selectedTask === task.id ? "Hide applicants" : "Review applicants"}</button>}{selectedTask === task.id && <ApplicantPanel taskId={task.id} list={applicantLists[task.id]} busy={controller.busy} worldEnvironment={controller.browser?.config.worldIdentityEnvironment ?? null} onSelect={(workerId) => void selectWorker(task.id, workerId)} />}</article>)}</div> : <EmptyState title="No tasks have been posted">Post a task above; its applications and escrow lifecycle will appear here.</EmptyState>}</section>
+      <section className="section-block"><SectionHeading eyebrow="Budgets" title="Agent spend limits" description="Available equals total budget less reservations and confirmed spend." />{dashboardPending ? <LoadingState label="Loading agent budgets…" variant="list" /> : dashboardError ? <p className="muted-copy">Agent budgets are unavailable until the workspace can be loaded.</p> : agents.length === 0 ? <EmptyState title="No agent policies yet">Create the first agent above to define permitted categories and task limits.</EmptyState> : <div className="agent-summary-grid">{agents.map((agent) => <article key={agent.id}><strong>{agent.name}</strong><span>{agent.categories.join(", ")}</span><small>Available {formatAtomic(agent.availableAtomic, agent.asset)} · reserved {formatAtomic(agent.reservedAtomic, agent.asset)} · spent {formatAtomic(agent.spentAtomic, agent.asset)}</small><small>Total {formatAtomic(agent.totalBudgetAtomic, agent.asset)} · per-task cap {formatAtomic(agent.maxTaskAtomic, agent.asset)}</small></article>)}</div>}</section>
+      <section className="section-block"><SectionHeading eyebrow="Task administration" title="Applicants and active tasks" description="Open an applicant’s public profile before selection. Selection closes competing applications atomically." />{dashboardPending ? <LoadingState label="Loading active tasks…" variant="list" /> : dashboardError ? <p className="muted-copy">Tasks are unavailable until the workspace can be loaded.</p> : dashboard?.tasks.length ? <div className="experience-list">{dashboard.tasks.map((task) => <article className="experience-row experience-row--task" key={task.id}><div><strong>{task.title}</strong><small>{task.category} · {task.area} · {task.worker?.displayName ?? "No worker selected"}</small></div><StatusBadge value={task.state} tone={taskTone(task.state)} /><strong>{formatAtomic(task.amountAtomic, task.asset)}</strong><a className="button button--small" href={`/tasks/${task.id}`}>Task details</a>{task.state === "OPEN" && <button className="button button--small" onClick={() => void showApplicants(task.id)}>{selectedTask === task.id ? "Hide applicants" : "Review applicants"}</button>}{selectedTask === task.id && <ApplicantPanel taskId={task.id} list={applicantLists[task.id]} loading={applicantLoading[task.id]} error={applicantErrors[task.id]} busy={controller.busy} worldEnvironment={controller.browser?.config.worldIdentityEnvironment ?? null} onSelect={(workerId) => void selectWorker(task.id, workerId)} />}</article>)}</div> : dashboard && <EmptyState title="No tasks have been posted">Post a task above; its applications and escrow lifecycle will appear here.</EmptyState>}</section>
     </>}
   </main>;
 }
 
-function ApplicantPanel({ taskId, list, busy, worldEnvironment, onSelect }: { taskId: string; list?: ApplicantList; busy: boolean; worldEnvironment: "production" | "staging" | "sandbox" | null; onSelect: (workerId: string) => void }) {
-  if (!list) return <div className="applicant-panel"><LoadingState label="Loading applicants…" variant="list" /></div>;
-  if (list.applicants.length === 0) return <div className="applicant-panel"><EmptyState title="No applications yet">Eligible workers can apply from the public task detail page.</EmptyState></div>;
-  return <div className="applicant-panel"><p className="eyebrow">Applicants · {taskId.slice(0, 8)} · {worldEnvironmentDisclosure(worldEnvironment)}</p>{list.applicants.map((application) => <article className="applicant-row" key={application.applicationId}><div><a href={application.worker.profilePath}><strong>{application.worker.displayName}</strong></a><small>{application.worker.category} · {application.worker.area} · {application.worker.skills.join(", ") || "No skills listed"}</small>{application.note && <p>{application.note}</p>}</div><StatusBadge value={worldCheckBadge(worldEnvironment, application.worker.worldVerified)} tone={application.worker.worldVerified ? "success" : "warning"} /><StatusBadge value={application.status} tone={application.status === "SELECTED" ? "success" : application.status === "DECLINED" ? "neutral" : "info"} />{application.status === "APPLIED" && <button className="button button--primary button--small" disabled={busy || !application.worker.eligible} title={!application.worker.eligible ? "Worker eligibility has changed; ask them to complete verification." : undefined} onClick={() => onSelect(application.workerId)}>Choose worker</button>}</article>)}</div>;
+function ApplicantPanel({ taskId, list, loading, error, busy, worldEnvironment, onSelect }: { taskId: string; list?: ApplicantList; loading: boolean; error: string; busy: boolean; worldEnvironment: "production" | "staging" | "sandbox" | null; onSelect: (workerId: string) => void }) {
+  if (!list && loading) return <div className="applicant-panel"><p className="eyebrow">Applicants · {taskId.slice(0, 8)}</p><LoadingState label="Loading applicants…" variant="list" /></div>;
+  if (!list && error) return <div className="applicant-panel"><Callout title="Applicants unavailable" tone="danger">{error}</Callout></div>;
+  if (!list) return <div className="applicant-panel"><p className="eyebrow">Applicants · {taskId.slice(0, 8)}</p></div>;
+
+  return <div className="applicant-panel">
+    <p className="eyebrow">Applicants · {taskId.slice(0, 8)} · {worldEnvironmentDisclosure(worldEnvironment)}</p>
+    {error && <Callout title="Applicant refresh failed" tone="danger">Showing previously loaded applicants. {error}</Callout>}
+    {list.applicants.length === 0 && <EmptyState title="No applications yet">Eligible workers can apply from the public task detail page.</EmptyState>}
+    {list.applicants.map((application) => (
+      <article className="applicant-row" key={application.applicationId}>
+        <div>
+          <a href={application.worker.profilePath}><strong>{application.worker.displayName}</strong></a>
+          <small>{application.worker.category} · {application.worker.area} · {application.worker.skills.join(", ") || "No skills listed"}</small>
+          {application.note && <p>{application.note}</p>}
+        </div>
+        <StatusBadge value={worldCheckBadge(worldEnvironment, application.worker.worldVerified)} tone={application.worker.worldVerified ? "success" : "warning"} />
+        <StatusBadge value={application.status} tone={application.status === "SELECTED" ? "success" : application.status === "DECLINED" ? "neutral" : "info"} />
+        {application.status === "APPLIED" && <button className="button button--primary button--small" disabled={busy || !application.worker.eligible} title={!application.worker.eligible ? "Worker eligibility has changed; ask them to complete verification." : undefined} onClick={() => onSelect(application.workerId)}>Choose worker</button>}
+      </article>
+    ))}
+  </div>;
 }
