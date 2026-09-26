@@ -31,7 +31,7 @@ This is a local connection workaround, not a required Vercel environment setting
 Configure production server variables from `.env.example`, using an explicit allowlist. The required groups are:
 
 - `APP_URL=https://ask2human.me` and `SESSION_SECRET`.
-- World worker app/RP/action/environment and private signing key.
+- World worker app/RP/action and private signing key, with `WORLD_ID_ENVIRONMENT=production` for app-only Selfie Check. The owner OIDC environment is configured separately.
 - World Agents issuer/client/secret and `WORLD_AGENTS_REDIRECT_URI=https://ask2human.me/auth/world/callback`.
 - `SUI_NETWORK=mainnet`, the mainnet gRPC URL, and the verified `T2000_AGENT_REGISTRY_ID` required for rejection. t2000's pinned SDK supplies its mainnet contract/token references; custom testnet publication is paused.
 - Actual S3 region/bucket and the least-privilege AWS credential provider. A local `AWS_PROFILE` does not travel to Vercel.
@@ -65,3 +65,7 @@ For the hackathon staging identity demonstration, configure `WORLD_ID_STAGING_VE
 ### Slush wallet verification
 
 Server wallet binding uses the SDK personal-message verifier with an explicit mainnet gRPC client and expected wallet address. The installed Sui SDK 2.33 requires the client to verify zkLogin signatures used by social-login wallets; do not rely on older documentation describing an implicit mainnet endpoint. The SDK also checks standard and legacy address variants. See [Sui SDK migration guidance](https://sdk.mystenlabs.com/sui/migrations/sui-2.0/sui) and the installed SDK `src/zklogin/publickey.ts`.
+
+### Production worker Selfie Check
+
+Apply migration `007_worker_selfie_verification.sql` before deploying this flow. Historical worker proofs are not automatically promoted to production. Workers with older verification can recheck from `/work`; current eligibility and badges require the configured environment and Selfie Check credential. Production enrollment does not use the staging token. A real user must complete the selfie in the World ID app; automated fixtures are not proof of that live ceremony.

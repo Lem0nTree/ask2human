@@ -1,15 +1,17 @@
 # World identity adapters
 
-`app/lib/world` contains server-only helpers for worker Proof of Human enrollment
+`app/lib/world` contains server-only helpers for worker Selfie Check enrollment
 and World ID for Agents authentication. The adapters use `@worldcoin/idkit-core`
 for IDKit request signatures and signal hashing, and `openid-client` 6.8.8 for
 OIDC discovery, authorization-code exchange, PKCE, and ID-token/JWKS validation.
 They do not accept identity claims from the browser and do not return proof or
 token payloads.
 
-## Worker Proof of Human
+## Worker Selfie Check (production)
 
-Configure `WORLD_ID_APP_ID`, `WORLD_ID_RP_ID`, `WORLD_ID_RP_SIGNING_KEY`,
+Use `selfieCheck({ signal })` with a one-time action and `allow_legacy_proofs: false`. Workers complete a selfie in the World ID app; no Orb or document credential is required. Selfie Check provides medium-assurance liveness and facial similarity, not Orb-level proof of unique humanity.
+
+Set `WORLD_ID_ENVIRONMENT=production`. Configure `WORLD_ID_APP_ID`, `WORLD_ID_RP_ID`, `WORLD_ID_RP_SIGNING_KEY`,
 `WORLD_ID_WORKER_ACTION`, and `WORLD_ID_ENVIRONMENT` on the server. The signing
 key stays server-side. Staging/sandbox verification also requires `WORLD_ID_STAGING_VERIFICATION_TOKEN`, kept only on the server. Use `createWorkerIdKitRequest` after authenticating the
 worker and creating a one-use challenge. Its returned request contains an
@@ -21,15 +23,16 @@ The `signal` must be derived server-side from the worker account being enrolled
 environment, RP nonce, worker binding, and expiry with the challenge. On
 completion, pass the full unmodified IDKit result and those expected values to
 `verifyWorkerIdKitResult`. The helper rejects a non-v4 response, mismatched
-action/environment/nonce/signal, a non-Proof-of-Human or multi-response result,
+action/environment/nonce/signal, a non-Selfie-Check or multi-response result,
 malformed nullifier/proof, an unsuccessful verifier response, or a mismatch in
 the verifier's action, environment, response identifier, or nullifier. It sends
 the complete result to World's
 [`POST /api/v4/verify/{rp_id}`](https://docs.world.org/api-reference/developer-portal/verify)
 endpoint and returns only the verified RP-scoped nullifier and binding metadata.
 
-Store the returned nullifier privately as a numeric 256-bit value and enforce
-uniqueness for the intended action in the database. Consume the challenge once
+Require the `selfie` response with schema `11`, integer `sybil_score`, and a version-2 `integrity_bundle`. Forward the complete response unchanged so World verifies its integrity. A score is trusted only after verification succeeds; no undocumented score threshold is assumed.
+
+Store the returned nullifier privately and enforce deduplication in the database. Record the verified environment and credential with it. Historical records without those fields are not treated as production Selfie Check results. Existing workers can complete verification again without losing their wallet, tasks, or payment history. Consume the challenge once
 whether verification succeeds or fails. Never log or return the proof, full
 IDKit result, nullifier, RP signing key, or verifier response body. A cancelled
 or failed client request does not produce a verified identity and leaves worker
@@ -72,7 +75,9 @@ its own: the application must keep the exact task, worker, amount, and expiry in
 its server-side approval record and consume that approval once. It also does not
 sign or authorize a Sui transaction.
 
-## Sources and live limits
+## Historical adapter evidence and sources
+
+Production worker cutover on 2026-09-26: migration `007_worker_selfie_verification` was applied and the production deployment was promoted to `ask2human.me`. The live state API reports worker verification configured in `production`. The deployment HTTP smoke passed. The historical demo worker retains its review and now correctly has `worldVerified: false` until reverified. Disposable PostgreSQL tests passed for reverification, provenance, stale challenges, and existing task access. These checks use a mocked successful verifier response; a real production selfie ceremony remains to be completed by a user.
 
 - [IDKit integration guide](https://docs.world.org/world-id/idkit/integrate) —
   server-side RP signing, v4 result format, full-result forwarding, expected
@@ -89,7 +94,9 @@ The RP signing check was exercised locally against the installed SDK. A
 synthetic invalid proof was rejected by the live v4 verifier with HTTP 400. The World Agents sandbox browser authorization handoff has now been observed. Its token exchange exposed a client authentication mismatch, corrected by selecting `ClientSecretBasic` explicitly. Independent Chromium checks now pass for both owner login and fresh protected approval, including verified identity continuity and authentication freshness. The callback was intercepted before the public app; deployed session/database callback acceptance remains pending. Domain DNS and deployment credentials are configured. Sandbox identities are mock identities, not production proof of
 humanity.
 
-## Current v4 staging prerequisite
+## Historical Proof of Human staging trial
+
+This section records the earlier Orb-based adapter work. Current worker enrollment requests Selfie Check instead; the production path above is the current contract. The staging-window helper remains available for explicitly configured test environments.
 
 The browser simulator generates genuine protocol 4.0 `proof_of_human` responses with five decimal proof words. The adapter accepts unsigned decimal or prefixed hexadecimal uint256 words, forwards the original object unchanged, and still requires successful verification from World. Local shape checks do not verify a proof. [Official verifier decoding](https://github.com/worldcoin/developer-portal/blob/main/web/api/v4/verify/uniqueness-proof/verify-v4.ts).
 

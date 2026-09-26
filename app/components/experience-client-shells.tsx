@@ -48,7 +48,7 @@ function MarketplaceFallback() {
       <h1>Offline tasks. <span>Human workers.</span></h1>
       <p>Find work posted by task owners. Apply as an eligible worker, agree on exact terms, and track confirmed USDC payments.</p>
       <div className="directory-collection-stats"><span><LoadingState label="Loading open task count…" variant="inline" /> open tasks</span><span className="testnet-dot" /><span><LoadingState label="Loading total USDC payout…" variant="inline" /> available payout</span></div>
-      <small>World verification checks worker account uniqueness; it does not certify completed work.</small>
+      <small>Workers use World Selfie Check in the app. No Orb visit is needed; task owners review the work.</small>
     </section>
     <section className="marketplace-section">
       <div className="section-heading"><div><p className="eyebrow">Marketplace</p><h2>Find a task</h2><p className="section-heading__description">Open task listings show the category, service area, reward, and deadline. Verify as a worker to read the full task brief and apply.</p></div></div>
@@ -93,7 +93,7 @@ function WorkFallback() {
 function WorkerFallback() {
   return <ExperienceFallbackFrame><main className="page-shell">
     <section className="directory-hero directory-hero--compact">
-      <p className="eyebrow">Worker profile · account uniqueness check</p>
+      <p className="eyebrow">Worker profile · World Selfie Check</p>
       <h1>Worker profile</h1>
       <p>Public eligibility, ratings, and completed-work summaries.</p>
       <small>Identity checks are separate from public ratings and completed-work records.</small>

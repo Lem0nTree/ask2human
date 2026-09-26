@@ -2,6 +2,7 @@ import type postgres from 'postgres';
 import { beginWorldAgentsAuthorization, completeWorldAgentsAuthorization, type WorldAgentsAuthorizationTransaction } from '../world';
 import { db } from './db';
 import { assert, HttpError } from './errors';
+import { isCurrentWorkerWorldVerified } from './identity';
 import { readSession, type Session } from './session';
 import { sha256, uuid } from './security';
 
@@ -151,8 +152,19 @@ async function completeBoundApproval(session: Session, flow: Record<string, any>
     } else {
       assert((task.state === 'REVIEW' || task.state === 'SUBMITTED') && task.review_decision === 'REQUEST_REVIEW', 409, 'review_required', 'The review decision changed before rejection approval.');
     }
-    const [worker] = await tx`SELECT status, wallet_address FROM workers WHERE id = ${approval.worker_id} FOR UPDATE`;
-    assert(worker?.status === 'VERIFIED' && worker.wallet_address === approval.worker_wallet, 409, 'approval_snapshot_changed', 'The worker wallet changed; request fresh approval.');
+    const [worker] = await tx`
+      SELECT status, wallet_address, idkit_verified_at, idkit_verified_environment,
+             idkit_credential, idkit_credential_schema, idkit_action
+      FROM workers WHERE id = ${approval.worker_id} FOR UPDATE
+    `;
+    assert(
+      worker?.status === 'VERIFIED' &&
+        worker.wallet_address === approval.worker_wallet &&
+        (approval.kind !== 'HIRE' || isCurrentWorkerWorldVerified(worker)),
+      409,
+      'approval_snapshot_changed',
+      'The worker World verification or wallet changed; request fresh approval.',
+    );
     await tx`UPDATE approvals SET status = 'APPROVED', consented_at = now() WHERE id = ${approval.id}`;
     await tx`
       INSERT INTO audit_events (actor_type, actor_id, task_id, event_type, safe_detail)

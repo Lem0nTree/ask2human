@@ -8,17 +8,17 @@ export type ExperienceAsset = {
 export type WorldIdentityEnvironment = "production" | "staging" | "sandbox" | null;
 
 export function worldEnvironmentDisclosure(environment: WorldIdentityEnvironment): string {
-  if (environment === "production") return "World production identity check";
-  if (environment === "staging") return "World staging identity demo";
-  if (environment === "sandbox") return "World sandbox identity demo";
+  if (environment === "production") return "World production Selfie Check";
+  if (environment === "staging") return "World staging Selfie Check demo";
+  if (environment === "sandbox") return "World sandbox Selfie Check demo";
   return "World identity environment not configured";
 }
 
 export function worldCheckStatus(environment: WorldIdentityEnvironment, verified: boolean): string {
   if (!verified) return "Not complete";
-  if (environment === "staging") return "Staging uniqueness check passed";
-  if (environment === "sandbox") return "Sandbox uniqueness check passed";
-  if (environment === "production") return "Uniqueness check passed";
+  if (environment === "staging") return "Staging selfie check passed";
+  if (environment === "sandbox") return "Sandbox selfie check passed";
+  if (environment === "production") return "Selfie check passed";
   return "Check recorded · environment unknown";
 }
 
@@ -26,7 +26,7 @@ export function worldCheckBadge(environment: WorldIdentityEnvironment, verified:
   if (!verified) return "Not verified";
   if (environment === "staging") return "World staging check";
   if (environment === "sandbox") return "World sandbox check";
-  if (environment === "production") return "World check";
+  if (environment === "production") return "World Selfie Check";
   return "World check · environment unknown";
 }
 

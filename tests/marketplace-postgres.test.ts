@@ -44,6 +44,8 @@ test('PostgreSQL enforces atomic budgets, one-winner acceptance, and safe browse
   const originalDatabaseUrl = process.env.DATABASE_URL;
   const originalAskDatabaseUrl = process.env.ASK2HUMAN_DATABASE_URL;
   const originalAppUrl = process.env.APP_URL;
+  const originalWorldEnvironment = process.env.WORLD_ID_ENVIRONMENT;
+  const originalWorkerAction = process.env.WORLD_ID_WORKER_ACTION;
   const admin = postgres(databaseUrl!, { max: 1, idle_timeout: 2, connect_timeout: 8, onnotice: () => {} });
   let isolated: ReturnType<typeof postgres> | undefined;
   try {
@@ -53,6 +55,8 @@ test('PostgreSQL enforces atomic budgets, one-winner acceptance, and safe browse
     process.env.DATABASE_URL = schemaUrl.toString();
     process.env.ASK2HUMAN_DATABASE_URL = schemaUrl.toString();
     isolated = postgres(schemaUrl.toString(), { max: 6, idle_timeout: 2, connect_timeout: 8, onnotice: () => {} });
+    process.env.WORLD_ID_ENVIRONMENT = 'production';
+    process.env.WORLD_ID_WORKER_ACTION = 'test-worker-enrollment';
 
     await isolated`CREATE TABLE schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`;
     const migrationFiles = (await readdir(resolve('infra/migrations')))
@@ -132,9 +136,10 @@ test('PostgreSQL enforces atomic budgets, one-winner acceptance, and safe browse
     for (let index = 0; index < workerIds.length; index += 1) {
       await isolated`
         INSERT INTO workers (id, display_name, category, area, status, wallet_address, wallet_verified_at,
-          idkit_nullifier, idkit_verified_at)
+          idkit_nullifier, idkit_verified_at, idkit_verified_environment, idkit_credential,
+          idkit_credential_schema, idkit_sybil_score, idkit_action)
         VALUES (${workerIds[index]}, ${`test worker ${index}`}, 'home', 'test area', 'VERIFIED', ${workerWallets[index]},
-          now(), ${privateNullifiers[index]}, now())
+          now(), ${privateNullifiers[index]}, now(), 'production', 'selfie', 11, 7, 'test-worker-enrollment')
       `;
     }
 
@@ -264,6 +269,10 @@ test('PostgreSQL enforces atomic budgets, one-winner acceptance, and safe browse
       else process.env.ASK2HUMAN_DATABASE_URL = originalAskDatabaseUrl;
       if (originalAppUrl === undefined) delete process.env.APP_URL;
       else process.env.APP_URL = originalAppUrl;
+      if (originalWorldEnvironment === undefined) delete process.env.WORLD_ID_ENVIRONMENT;
+      else process.env.WORLD_ID_ENVIRONMENT = originalWorldEnvironment;
+      if (originalWorkerAction === undefined) delete process.env.WORLD_ID_WORKER_ACTION;
+      else process.env.WORLD_ID_WORKER_ACTION = originalWorkerAction;
     }
   }
 });

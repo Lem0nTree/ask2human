@@ -23,7 +23,7 @@ import {
 import type { Job } from '@t2000/sdk';
 import { db } from './db';
 import { assert, HttpError } from './errors';
-import { ownerForSession, workerForSession } from './identity';
+import { isCurrentWorkerWorldVerified, ownerForSession, workerForSession } from './identity';
 import { sha256 } from './security';
 import type { Session } from './session';
 import type { FrozenEscrowTransaction } from '../sui/escrow';
@@ -224,7 +224,10 @@ export async function buildFundingTransaction(session: Session, taskId: string) 
              a.fee_quote_bps, a.fee_quote_atomic, a.net_quote_atomic, a.worker_id AS approval_worker_id,
              a.worker_wallet, a.owner_wallet, a.expires_at, a.consented_at,
              a.transaction_bytes_base64, a.expected_digest,
-             w.status AS worker_status, w.wallet_address, o.wallet_address AS linked_owner_wallet
+             w.status AS worker_status, w.wallet_address,
+             w.idkit_verified_at, w.idkit_verified_environment, w.idkit_credential,
+             w.idkit_credential_schema, w.idkit_action,
+             o.wallet_address AS linked_owner_wallet
       FROM tasks t
       JOIN approvals a ON a.task_id = t.id AND a.kind = 'HIRE' AND a.owner_id = t.owner_id
         AND ((t.state = 'FUNDING' AND a.status = 'ISSUED')
@@ -247,7 +250,19 @@ export async function buildFundingTransaction(session: Session, taskId: string) 
     }
     assert(task.state === 'ASSIGNED' && task.approval_status === 'APPROVED', 409, 'owner_approval_required', 'Fresh owner approval for this exact task is required before funding.');
     assert(new Date(task.expires_at).getTime() > Date.now() && task.consented_at, 409, 'approval_expired', 'Owner approval has expired.');
-    assert(task.worker_status === 'VERIFIED' && task.wallet_address && sameAddress(task.wallet_address, task.worker_wallet), 409, 'approval_snapshot_changed', 'The worker wallet changed; request fresh owner approval.');
+    assert(
+      isCurrentWorkerWorldVerified({
+        status: task.worker_status,
+        idkit_verified_at: task.idkit_verified_at,
+        idkit_verified_environment: task.idkit_verified_environment,
+        idkit_credential: task.idkit_credential,
+        idkit_credential_schema: task.idkit_credential_schema,
+        idkit_action: task.idkit_action,
+      }) && task.wallet_address && sameAddress(task.wallet_address, task.worker_wallet),
+      409,
+      'approval_snapshot_changed',
+      'The worker World verification or wallet changed; request fresh owner approval.',
+    );
     assert(task.linked_owner_wallet && sameAddress(task.linked_owner_wallet, task.owner_wallet) && sameAddress(owner.wallet_address, task.owner_wallet), 409, 'approval_snapshot_changed', 'The owner wallet changed; request fresh owner approval.');
     assert(String(task.amount_atomic) === String(task.approval_amount_atomic) && task.assigned_worker_id === task.approval_worker_id, 409, 'approval_snapshot_changed', 'The task amount or worker changed; request fresh owner approval.');
     assert(task.asset === task.approval_asset && task.network === task.approval_network && Number(task.decimals) === Number(task.approval_decimals), 409, 'approval_snapshot_changed', 'The payment asset changed; request fresh owner approval.');

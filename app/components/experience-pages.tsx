@@ -3,7 +3,7 @@
 import { DAppKitProvider, useCurrentAccount, useDAppKit } from "@mysten/dapp-kit-react";
 import { ConnectButton } from "./wallet-connect-button";
 import { Transaction } from "@mysten/sui/transactions";
-import { IDKitRequestWidget, proofOfHuman } from "@worldcoin/idkit";
+import { IDKitRequestWidget, selfieCheck } from "@worldcoin/idkit";
 import type { IDKitResult } from "@worldcoin/idkit";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { AppNavigation } from "./app-navigation";
@@ -587,7 +587,7 @@ function MarketplaceContent() {
       <h1>Offline tasks. <span>Human workers.</span></h1>
       <p>Find work posted by task owners. Apply as an eligible worker, agree on exact terms, and track confirmed USDC payments.</p>
       <div className="directory-collection-stats"><span>{loadingTasks ? <LoadingState label="Loading task count…" variant="inline" /> : <strong>{loadError ? "—" : taskStats.count}</strong>} {completed ? "completed" : "open"} tasks</span><span className="testnet-dot" /><span>{loadingTasks ? <LoadingState label="Loading total USDC payout…" variant="inline" /> : <strong>{loadError ? "—" : formatAtomic(taskStats.totalPayoutAtomic, MAINNET_USDC)}</strong>} {completed ? "total task rewards" : "available payout"}</span></div>
-      <small>World verification checks worker account uniqueness; it does not certify completed work.</small>
+      <small>Workers use World Selfie Check in the app. No Orb visit is needed; task owners review the work.</small>
     </section>
     <section className="marketplace-section" aria-labelledby="marketplace-title">
       <SectionHeading eyebrow="Marketplace" title="Find a task" description="Open task listings show the category, service area, reward, and deadline. Verify as a worker to read the full task brief and apply." />
@@ -978,7 +978,7 @@ function WorkContent() {
     const completed = await controller.run(() => controller.call("complete_worker_verification", { challengeId: idKitStart.challengeId, idkitResult: result }));
     if (completed) {
       setIdKitStart(null);
-      controller.setNotice(`World accepted the ${worldEnvironmentDisclosure(idKitStart.request.environment)}. This check confirms account uniqueness only.`);
+      controller.setNotice(`World accepted the ${worldEnvironmentDisclosure(idKitStart.request.environment)}. Your app-based selfie check is complete. It does not verify skills or completed work.`);
       await loadDashboard();
     }
   }
@@ -1033,9 +1033,10 @@ function WorkContent() {
 
       <WorkStep step={3} currentStep={currentStep}>
         {!walletReady || !worker ? <p>Link your payout wallet first. The identity check is attached to your worker account.</p> : <>
-          <p>{worldEnvironmentDisclosure(worldEnvironment)} checks your worker account for uniqueness. It does not rate your skills or verify the quality of your delivery.</p>
+          <p>{worldEnvironmentDisclosure(worldEnvironment)} uses a selfie in the World ID app to check liveness and facial similarity. No Orb visit is needed. This is a lighter check than Orb verification; it does not verify skills or delivery quality.</p>
           {worker.worldVerified ? <div className="hiring-step__status"><StatusBadge value={worldCheckStatus(worldEnvironment, true)} tone="success" /></div> : <>
-            <div className="hiring-step__actions"><button className="button button--primary" disabled={controller.busy || !controller.browser?.config.workerVerificationConfigured} onClick={() => void startIDKit()}>{!controller.browser?.config.workerVerificationConfigured ? "Identity check unavailable" : worldEnvironment && worldEnvironment !== "production" ? `Start ${worldEnvironment} identity check` : "Start World identity check"}</button></div>
+            {worker.status === "VERIFIED" && <p className="hiring-step__hint">Your earlier verification does not meet the current check. Complete Selfie Check to apply for new tasks; your profile and work history are saved.</p>}
+            <div className="hiring-step__actions"><button className="button button--primary" disabled={controller.busy || !controller.browser?.config.workerVerificationConfigured} onClick={() => void startIDKit()}>{!controller.browser?.config.workerVerificationConfigured ? "Identity check unavailable" : worldEnvironment && worldEnvironment !== "production" ? `Start ${worldEnvironment} selfie check` : "Verify with World ID app"}</button></div>
             {!controller.browser?.config.workerVerificationConfigured && <p className="hiring-step__hint">Identity verification is currently unavailable. Your profile and linked wallet are saved; return here when verification is available.</p>}
           </>}
         </>}
@@ -1097,7 +1098,7 @@ function WorkContent() {
                 : null}
           </section>
       </div>}
-    {idKitStart && <><Callout title={`${worldEnvironmentDisclosure(idKitStart.request.environment)}`} tone="info">This environment checks that the worker account is unique. It does not certify work quality or prove that evidence is authentic.</Callout><IDKitRequestWidget open onOpenChange={(open) => { if (!open) setIdKitStart(null); }} app_id={idKitStart.request.app_id} action={idKitStart.request.action} rp_context={idKitStart.request.rp_context} environment={idKitStart.request.environment} allow_legacy_proofs={false} preset={proofOfHuman({ signal: idKitStart.request.signal })} handleVerify={completeIDKit} onSuccess={() => setIdKitStart(null)} onError={() => controller.setError("World could not complete this identity check. Start a fresh request and try again.")} /></>}
+    {idKitStart && <><Callout title={`${worldEnvironmentDisclosure(idKitStart.request.environment)}`} tone="info">Complete Selfie Check in the World ID app. No Orb visit is needed. This checks liveness and facial similarity, not work quality or evidence authenticity.</Callout><IDKitRequestWidget open onOpenChange={(open) => { if (!open) setIdKitStart(null); }} app_id={idKitStart.request.app_id} action={idKitStart.request.action} rp_context={idKitStart.request.rp_context} environment={idKitStart.request.environment} allow_legacy_proofs={false} preset={selfieCheck({ signal: idKitStart.request.signal })} handleVerify={completeIDKit} onSuccess={() => setIdKitStart(null)} onError={() => controller.setError("World could not complete this identity check. Start a fresh request and try again.")} /></>}
   </main>;
 }
 
@@ -1122,7 +1123,7 @@ function PublicWorkerContent({ workerId }: { workerId: string }) {
   return <main className="page-shell">
     {error && <Callout title="Worker profile unavailable" tone="danger">{error}</Callout>}
     <section className="directory-hero directory-hero--compact">
-      <p className="eyebrow">Worker profile · account uniqueness check</p>
+      <p className="eyebrow">Worker profile · World Selfie Check</p>
       <h1>{worker?.displayName ?? "Worker profile"}</h1>
       <p>{worker ? `${worker.category} · ${worker.area}` : "Public eligibility, ratings, and completed-work summaries."}</p>
       <div className="directory-collection-stats">{worker ? <><StatusBadge value={worldCheckBadge(worldEnvironment, worker.worldVerified)} tone={worker.worldVerified ? "success" : "warning"} /><span>{worker.skills.length ? worker.skills.join(" · ") : "No skills listed"}</span></> : workerLoading ? <LoadingState label="Loading worker summary…" variant="inline" /> : null}</div>

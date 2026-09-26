@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { db } from './db';
 import { assert } from './errors';
-import { ownerForSession, workerForSession } from './identity';
+import { isCurrentWorkerWorldVerified, ownerForSession, workerForSession } from './identity';
 import { isAgentPostingAuthorized } from './profile-authorization';
 import { uuid } from './security';
 import type { Session } from './session';
@@ -102,6 +102,10 @@ export async function getExperienceTask(taskId: string, session?: Session | null
     )
     SELECT t.*, w.display_name AS worker_name, w.wallet_address AS worker_wallet,
            w.status AS worker_status, w.idkit_verified_at AS worker_idkit_verified_at,
+           w.idkit_verified_environment AS worker_idkit_verified_environment,
+           w.idkit_credential AS worker_idkit_credential,
+           w.idkit_credential_schema AS worker_idkit_credential_schema,
+           w.idkit_action AS worker_idkit_action,
            w.wallet_verified_at AS worker_wallet_verified_at,
            a.name AS agent_name,
            COALESCE(r.paid_task_count, 0)::integer AS owner_paid_task_count,
@@ -131,7 +135,7 @@ export async function getExperienceTask(taskId: string, session?: Session | null
   const isOwner = owner?.id === row.owner_id;
   const isSelectedWorker = worker?.id === row.assigned_worker_id;
   const isParticipant = isOwner || isSelectedWorker;
-  const canReadOpenBrief = row.state === 'OPEN' && worker?.status === 'VERIFIED' && !!worker.wallet_address && !!worker.wallet_verified_at;
+  const canReadOpenBrief = row.state === 'OPEN' && !!worker && isCurrentWorkerWorldVerified(worker) && !!worker.wallet_address && !!worker.wallet_verified_at;
   const [application] = worker ? await db()`
     SELECT status FROM task_applications WHERE task_id = ${taskId} AND worker_id = ${worker.id}
   ` : [];
@@ -171,7 +175,7 @@ export async function getExperienceTask(taskId: string, session?: Session | null
     WHERE task_id = ${taskId} AND reviewer_wallet = ${owner.wallet_address}
   ` : [];
 
-  const canApply = !!worker && worker.status === 'VERIFIED' && !!worker.wallet_address && !!worker.wallet_verified_at &&
+  const canApply = !!worker && isCurrentWorkerWorldVerified(worker) && !!worker.wallet_address && !!worker.wallet_verified_at &&
     row.state === 'OPEN' && new Date(row.deadline).getTime() > Date.now() && worker.category === row.category;
   const settlement = row.settlement_status ? (() => {
     const grossAtomic = String(row.settlement_amount_atomic ?? row.amount_atomic);
@@ -226,7 +230,14 @@ export async function getExperienceTask(taskId: string, session?: Session | null
       id: row.assigned_worker_id,
       displayName: row.worker_name,
       walletAddress: isParticipant ? row.worker_wallet : null,
-      worldVerified: Boolean(row.worker_idkit_verified_at),
+      worldVerified: isCurrentWorkerWorldVerified({
+        status: row.worker_status,
+        idkit_verified_at: row.worker_idkit_verified_at,
+        idkit_verified_environment: row.worker_idkit_verified_environment,
+        idkit_credential: row.worker_idkit_credential,
+        idkit_credential_schema: row.worker_idkit_credential_schema,
+        idkit_action: row.worker_idkit_action,
+      }),
       profilePath: `/workers/${row.assigned_worker_id}`,
     } : null,
     settlement,
@@ -256,7 +267,8 @@ export async function getExperienceTask(taskId: string, session?: Session | null
 
 export async function getWorkerProfile(workerId: string) {
   const [worker] = await db()`
-    SELECT id, display_name, category, area, skills, status, idkit_verified_at
+    SELECT id, display_name, category, area, skills, status, idkit_verified_at,
+           idkit_verified_environment, idkit_credential, idkit_credential_schema, idkit_action
     FROM workers WHERE id = ${workerId} AND status = 'VERIFIED'
   `;
   assert(worker, 404, 'worker_profile_not_found', 'Verified worker profile was not found.');
@@ -279,7 +291,7 @@ export async function getWorkerProfile(workerId: string) {
     category: worker.category,
     area: worker.area,
     skills: worker.skills,
-    worldVerified: Boolean(worker.idkit_verified_at),
+    worldVerified: isCurrentWorkerWorldVerified(worker),
     averageRating: summary.average_rating == null ? null : Number(summary.average_rating),
     reviewCount: Number(summary.review_count ?? 0),
     ratingSource: Number(summary.review_count ?? 0) > 0 ? 't2000' : null,
@@ -434,7 +446,7 @@ export type ApplicationNote = string | undefined;
 
 export async function applyForTask(session: Session, taskId: string, note?: ApplicationNote) {
   const worker = await workerForSession(session);
-  assert(worker.status === 'VERIFIED' && worker.wallet_address && worker.wallet_verified_at,
+  assert(isCurrentWorkerWorldVerified(worker) && worker.wallet_address && worker.wallet_verified_at,
     403, 'worker_not_ready', 'Verify your worker profile and link a payout wallet before applying.');
   const normalizedNote = note?.trim() || null;
   assert(!normalizedNote || normalizedNote.length <= 500, 400, 'application_note_invalid', 'Application notes must be 500 characters or fewer.');
@@ -508,7 +520,8 @@ async function listTaskApplicants(taskId: string) {
   const rows = await db()`
     SELECT a.id, a.worker_id, a.note, a.status, a.created_at,
            w.display_name, w.category, w.area, w.skills, w.status AS worker_status,
-           w.idkit_verified_at IS NOT NULL AS world_verified
+           w.idkit_verified_at, w.idkit_verified_environment, w.idkit_credential,
+           w.idkit_credential_schema, w.idkit_action
     FROM task_applications a
     JOIN workers w ON w.id = a.worker_id
     WHERE a.task_id = ${taskId}
@@ -530,8 +543,22 @@ async function listTaskApplicants(taskId: string) {
         category: row.category,
         area: row.area,
         skills: row.skills,
-        worldVerified: Boolean(row.world_verified),
-        eligible: row.worker_status === 'VERIFIED',
+        worldVerified: isCurrentWorkerWorldVerified({
+          status: row.worker_status,
+          idkit_verified_at: row.idkit_verified_at,
+          idkit_verified_environment: row.idkit_verified_environment,
+          idkit_credential: row.idkit_credential,
+          idkit_credential_schema: row.idkit_credential_schema,
+          idkit_action: row.idkit_action,
+        }),
+        eligible: isCurrentWorkerWorldVerified({
+          status: row.worker_status,
+          idkit_verified_at: row.idkit_verified_at,
+          idkit_verified_environment: row.idkit_verified_environment,
+          idkit_credential: row.idkit_credential,
+          idkit_credential_schema: row.idkit_credential_schema,
+          idkit_action: row.idkit_action,
+        }),
         profilePath: `/workers/${row.worker_id}`,
       },
     })),
@@ -678,13 +705,22 @@ async function selectTaskApplicant(input: {
 
     const [application] = await tx`
       SELECT a.id, a.status, w.status AS worker_status, w.category,
-             w.wallet_address, w.wallet_verified_at, w.idkit_verified_at
+             w.wallet_address, w.wallet_verified_at, w.idkit_verified_at,
+             w.idkit_verified_environment, w.idkit_credential,
+             w.idkit_credential_schema, w.idkit_action
       FROM task_applications a JOIN workers w ON w.id = a.worker_id
       WHERE a.task_id = ${input.taskId} AND a.worker_id = ${input.workerId}
       FOR UPDATE OF a, w
     `;
     assert(application?.status === 'APPLIED', 409, 'application_unavailable', 'Choose a worker who has an active application for this task.');
-    assert(application.worker_status === 'VERIFIED' && application.idkit_verified_at && application.wallet_address && application.wallet_verified_at,
+    assert(isCurrentWorkerWorldVerified({
+      status: application.worker_status,
+      idkit_verified_at: application.idkit_verified_at,
+      idkit_verified_environment: application.idkit_verified_environment,
+      idkit_credential: application.idkit_credential,
+      idkit_credential_schema: application.idkit_credential_schema,
+      idkit_action: application.idkit_action,
+    }) && application.wallet_address && application.wallet_verified_at,
       409, 'worker_not_ready', 'The selected worker must have verified World identity and a linked payout wallet.');
     assert(application.category === task.category, 409, 'worker_category_mismatch', 'The selected worker category no longer matches the task.');
 

@@ -35,14 +35,22 @@ function makeIdKitResult(overrides: Record<string, unknown> = {}) {
     environment: "staging",
     responses: [
       {
-        identifier: "proof_of_human",
+        identifier: "selfie",
         signal_hash: expectedSignalHash,
         proof: ["0x01", "0x02", "0x03", "0x04", "0x05"],
         nullifier,
-        issuer_schema_id: 1,
+        issuer_schema_id: 11,
+        sybil_score: 7,
         expires_at_min: 1_800_000_000,
       },
     ],
+    integrity_bundle: {
+      version: 2,
+      signature_format: "apple_app_attest",
+      timestamp: 1_700_000_000,
+      signature: "a1b2c3",
+      jwt: "header.payload.signature",
+    },
     ...overrides,
   };
 }
@@ -85,7 +93,7 @@ test("IDKit v4 verification forwards the full result and returns only verified i
           environment: "staging",
           nullifier,
           results: [{
-            identifier: "proof_of_human",
+            identifier: "selfie",
             success: true,
             nullifier,
           }],
@@ -99,6 +107,9 @@ test("IDKit v4 verification forwards the full result and returns only verified i
     nullifier,
     action,
     environment: "staging",
+    credential: "selfie",
+    credentialSchema: 11,
+    sybilScore: 7,
     signalHash: expectedSignalHash,
   });
   assert.equal("proof" in identity, false);
@@ -184,6 +195,46 @@ test("IDKit rejects nonce, action, environment, and signal mismatches before cal
   assert.equal(fetchCalls, 0);
 });
 
+test("Selfie Check requires schema 11, an integrity bundle, and an integer sybil score", async () => {
+  const cases = [
+    (() => {
+      const result = makeIdKitResult();
+      result.responses[0].identifier = "proof_of_human";
+      return result;
+    })(),
+    (() => {
+      const result = makeIdKitResult();
+      result.responses[0].issuer_schema_id = 1;
+      return result;
+    })(),
+    (() => {
+      const result = makeIdKitResult();
+      delete (result as Record<string, unknown>).integrity_bundle;
+      return result;
+    })(),
+    (() => {
+      const result = makeIdKitResult();
+      (result.integrity_bundle as Record<string, unknown>).version = 1;
+      return result;
+    })(),
+    (() => {
+      const result = makeIdKitResult();
+      result.responses[0].sybil_score = 1.5;
+      return result;
+    })(),
+  ];
+
+  for (const idkitResult of cases) {
+    await assert.rejects(
+      verifyWorkerIdKitResult(makeVerifyInput({
+        idkitResult,
+        fetcher: async () => { throw new Error("Malformed Selfie Check result must not reach World"); },
+      })),
+      assertWorldError("invalid_proof"),
+    );
+  }
+});
+
 test("IDKit forwards decimal proof words unchanged but still requires verifier success", async () => {
   const result = makeIdKitResult();
   result.responses[0].proof = ["1", "2", "3", "4", ((1n << 256n) - 1n).toString()];
@@ -215,7 +266,7 @@ test("IDKit rejects an unsuccessful or mismatched verifier response", async () =
       action,
       environment: "staging",
       nullifier: `0x${"cd".repeat(32)}`,
-      results: [{ identifier: "proof_of_human", success: true, nullifier }],
+            results: [{ identifier: "selfie", success: true, nullifier }],
     },
     {
       success: true,
@@ -223,6 +274,20 @@ test("IDKit rejects an unsuccessful or mismatched verifier response", async () =
       environment: "staging",
       nullifier,
       results: [{ identifier: "passport", success: true, nullifier }],
+    },
+    {
+      success: true,
+      action: "different-action",
+      environment: "staging",
+      nullifier,
+      results: [{ identifier: "selfie", success: true, nullifier }],
+    },
+    {
+      success: true,
+      action,
+      environment: "production",
+      nullifier,
+      results: [{ identifier: "selfie", success: true, nullifier }],
     },
   ]) {
     await assert.rejects(

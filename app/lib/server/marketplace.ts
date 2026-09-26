@@ -4,7 +4,14 @@ import { assert, HttpError } from './errors';
 import { sha256, uuid } from './security';
 import type { Session } from './session';
 import type { AgentToolName, TaskFieldsInput } from './schemas';
-import { ownerForSession, workerForSession } from './identity';
+import {
+  currentWorkerWorldVerificationConfig,
+  isCurrentWorkerWorldVerified,
+  ownerForSession,
+  workerForSession,
+  WORKER_WORLD_CREDENTIAL,
+  WORKER_WORLD_CREDENTIAL_SCHEMA,
+} from './identity';
 import { createAuthorizedAgent, assertAgentPostingAuthorized, isAgentPostingAuthorized } from './profile-authorization';
 import { assertSufficientPostingBalance, type PostingBalanceDependency } from './posting-balance';
 import { readT2000FeeBps, t2000Config } from '../sui/t2000';
@@ -107,7 +114,7 @@ export async function getBrowserState(session: Session) {
         status: worker.status,
         walletAddress: worker.wallet_address,
         walletVerified: !!worker.wallet_verified_at,
-        worldVerified: !!worker.idkit_verified_at,
+        worldVerified: isCurrentWorkerWorldVerified(worker),
       } : null,
       owner: owner ? { id: owner.id, walletAddress: owner.wallet_address, walletVerified: !!owner.wallet_verified_at } : null,
     },
@@ -137,7 +144,7 @@ export async function getBrowserState(session: Session) {
     tasks: publicTasks.map((task) => {
       const isParticipant = task.owner_id === owner?.id || task.assigned_worker_id === worker?.id;
       const canReadOpenBrief = task.state === 'OPEN'
-        && worker?.status === 'VERIFIED'
+        && !!worker && isCurrentWorkerWorldVerified(worker)
         && !!worker.wallet_address
         && !!worker.wallet_verified_at
         && worker.category === task.category;
@@ -300,10 +307,16 @@ export async function ownerCreateTask(session: Session, agentId: string, fields:
 export async function searchWorkers(agent: AgentPrincipal, filters: { category?: string; area?: string }) {
   assertScope(agent, 'search_workers');
   assert(!filters.category || agent.categories.includes(filters.category), 403, 'agent_policy_rejected', 'Agent cannot search this category.');
+  const currentWorld = currentWorkerWorldVerificationConfig();
   const workers = await db()`
     SELECT id, display_name, category, area, skills, wallet_address IS NOT NULL AS wallet_linked
     FROM workers
-    WHERE status = 'VERIFIED' AND wallet_address IS NOT NULL
+    WHERE status = 'VERIFIED' AND wallet_address IS NOT NULL AND wallet_verified_at IS NOT NULL
+      AND idkit_verified_at IS NOT NULL
+      AND idkit_verified_environment = ${currentWorld?.environment ?? null}
+      AND idkit_credential = ${currentWorld ? WORKER_WORLD_CREDENTIAL : null}
+      AND idkit_credential_schema = ${currentWorld ? WORKER_WORLD_CREDENTIAL_SCHEMA : null}
+      AND idkit_action = ${currentWorld?.action ?? null}
       AND category = ANY(${db().array(agent.categories)})
       AND (${filters.category ?? null}::text IS NULL OR category = ${filters.category ?? null})
       AND (${filters.area ?? null}::text IS NULL OR area ILIKE ${filters.area ? `%${filters.area}%` : null})
@@ -467,9 +480,18 @@ export async function createBoundApproval(agent: AgentPrincipal, taskId: string,
     } else {
       assert((task.state === 'REVIEW' || task.state === 'SUBMITTED') && task.review_decision === 'REQUEST_REVIEW', 409, 'review_required', 'A submission requesting review is required before rejection.');
     }
-    const [worker] = await tx`SELECT id, status, wallet_address FROM workers WHERE id = ${task.assigned_worker_id} FOR UPDATE`;
+    const [worker] = await tx`
+      SELECT id, status, wallet_address, idkit_verified_at, idkit_verified_environment,
+             idkit_credential, idkit_credential_schema, idkit_action
+      FROM workers WHERE id = ${task.assigned_worker_id} FOR UPDATE
+    `;
     const [owner] = await tx`SELECT id, wallet_address FROM owners WHERE id = ${task.owner_id} FOR UPDATE`;
-    assert(worker?.status === 'VERIFIED' && worker.wallet_address, 409, 'worker_wallet_required', 'The assigned worker needs a verified wallet and human proof.');
+    assert(
+      worker?.status === 'VERIFIED' && worker.wallet_address && (kind !== 'HIRE' || isCurrentWorkerWorldVerified(worker)),
+      409,
+      'worker_wallet_required',
+      'The assigned worker needs a current Selfie Check verification and linked payout wallet.',
+    );
     assert(owner?.wallet_address, 409, 'owner_wallet_required', 'Link a signed owner funding wallet first.');
 
     await tx`

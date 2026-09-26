@@ -1,67 +1,95 @@
 # ask2human
 
-## Offline tasks. Human workers.
+### Offline tasks. Human workers.
 
-AI agents can search the web, but they cannot walk into a shop and check what is on the shelf. ask2human lets them hire someone who can.
+**AI agents can plan the work. Humans can go out and do it.**
 
-An agent posts a task. A human worker applies, completes the work, and submits a photo and report. The agent's owner approves the hire and controls the payment. USDC is held in escrow on Sui and paid directly to the worker's wallet.
+ask2human lets an agent hire someone for a shop visit, a local price check, or a photo from a specific place. The worker gets clear terms and a funded reward. The agent's owner approves the hire and signs the payment. USDC moves from escrow straight to the worker's wallet.
 
-**[Try ask2human](https://ask2human.me)** · **[See a completed task](https://ask2human.me/tasks/35dc7c07-3a92-4374-be37-d404aedbfbe7)** · **[See the worker's review](https://ask2human.me/workers/a17b1a5f-f5b7-4b74-884f-87bdbbadd2f4)** · **[Read the testing proof](docs/PROOF_OF_TESTING.md)**
+**[Try the app →](https://ask2human.me)** · **[Completed task](https://ask2human.me/tasks/35dc7c07-3a92-4374-be37-d404aedbfbe7)** · **[Transaction proof](docs/PROOF_OF_TESTING.md)** · **[Run locally](#run-locally)**
 
-Built for **ETHGlobal Tokyo 2026**. The demo uses real mainnet USDC and World sandbox/staging identities.
+Built for **ETHGlobal Tokyo 2026** · **World ID** for identity and approvals · **Sui mainnet** for USDC payments
 
-## Why use it?
+[![ask2human marketplace: offline tasks, human workers, and available USDC payouts](docs/images/marketplace.png)](https://ask2human.me)
 
-A shop visit, a local price check, or a photo of a public notice can answer a question that an agent cannot resolve online. Today, arranging that work means finding someone, agreeing on payment, collecting evidence, and keeping track of what happened.
+*The live marketplace, captured on 26 September 2026. Listing counts and available rewards change as tasks are posted.*
 
-ask2human brings those steps into one task:
+[Why ask2human](#why-ask2human) · [How it works](#how-it-works) · [Hackathon challenges](#hackathon-challenges) · [Real payments](#real-payments-with-receipts) · [Technical details](#technical-details)
 
-- **For agents:** an API and MCP connector to post work, find applicants, and follow delivery.
-- **For owners:** spending limits, approval of the exact worker and amount, and control over wallet signatures.
-- **For workers:** clear terms before starting, a funded reward, and payment to their own wallet.
-- **For both sides:** a record of delivery, payment, and reviews. Task details also show the owner's paid-task count and total paid to workers across their agents.
+## A quick tour for judges
 
-For example, an agent researching local shops could ask a worker to photograph a storefront and confirm its opening hours. This is an example use case; the recorded acceptance tasks below tested the application and payment flow.
+1. **[Browse the marketplace](https://ask2human.me).** See the task, location, deadline, and USDC reward without signing in.
+2. **[Open a completed task](https://ask2human.me/tasks/35dc7c07-3a92-4374-be37-d404aedbfbe7).** Check the payment status and the publisher's history across their agents.
+3. **[View the worker's review](https://ask2human.me/workers/a17b1a5f-f5b7-4b74-884f-87bdbbadd2f4).** Follow the confirmed work and rating, then compare the receipts below.
+4. **Explore either side:** [become a worker](https://ask2human.me/work) or [connect a hiring agent](https://ask2human.me/agents).
+
+**Demo status:** payments are real mainnet USDC. Worker enrollment uses production World Selfie Check, with no Orb required. Owner authentication uses the event's World dev/sandbox flow. The recorded payment trials used staging/sandbox identities; the new production selfie journey still needs a real user completion.
+
+## Why ask2human?
+
+An agent can compare shops online. It cannot walk into one to check a price or photograph a notice. Hiring someone to do that usually means arranging the work, payment, evidence, and follow-up in separate places.
+
+ask2human puts those steps in one task.
+
+| Who | What they get |
+| --- | --- |
+| **Agents** | API and MCP tools to publish a brief, find applicants, select a worker, and follow delivery. |
+| **Owners** | Category and spending limits, approval of the exact hire, and control over wallet signatures. |
+| **Workers** | The reward and terms before they apply, escrow funding before they start, and USDC paid to their own wallet. |
+| **Both sides** | A record of completed work, payments, and reviews. Owner payment history follows the owner across agent profiles. |
+
+**Example:** a research agent needs current opening hours for a local shop. It posts a task asking for a storefront photo and a short report. A nearby worker applies, waits for funding, visits the shop, and delivers the evidence. This is an intended use case; our recorded demo tested the marketplace and settlement flow.
 
 ## How it works
 
-1. **Set a budget.** The owner signs in with World, links a wallet, and creates a hiring profile with allowed categories and spending limits.
-2. **Post a task.** The agent publishes the brief, reward, deadline, and required evidence. The app checks the owner's USDC balance against outstanding listings.
-3. **Choose a worker.** A worker completes World verification, links a payout wallet, and applies. The agent selects an applicant.
-4. **Fund the work.** The owner confirms the exact hire through a fresh World authentication and signs the escrow transaction. The worker and payment terms are fixed at funding.
-5. **Deliver and pay.** The worker uploads private evidence and records delivery. After review, the owner approves and signs payment release. The owner can then leave an onchain rating.
+1. **Set the limits.** The owner signs in with World, links a wallet, and authorizes a hiring profile with a budget and allowed categories.
+2. **Post the task.** The agent submits the brief, reward, deadline, and evidence requirements. The app checks available USDC against outstanding listings.
+3. **Choose a worker.** The worker links a payout wallet, completes World Selfie Check, and applies. The agent selects an applicant.
+4. **Fund before work starts.** The owner completes fresh World authentication for the exact hire and signs the escrow transaction.
+5. **Deliver, review, and pay.** The worker uploads private evidence and records delivery. The owner approves payment release and can leave an onchain rating.
 
-The agreed terms also cover a refund for overdue, undelivered work, a worker payment claim after the review window ends, and a payout split if the owner rejects delivery. These paths have real transaction receipts below.
+The agreed terms also cover overdue refunds, a worker claim after the review window, and a payout split if delivery is rejected. Each path has a mainnet receipt below.
 
 ## Hackathon challenges
 
-Our target challenges are World’s **Best Use of IDKit** and **Best Use of World ID for Agents**, and Sui’s **DeFi & Payments**. See the [official prize descriptions](https://ethglobal.com/events/tokyo2026/prizes). The sections below explain our contribution to each challenge.
+We are targeting these [ETHGlobal Tokyo 2026 challenges](https://ethglobal.com/events/tokyo2026/prizes):
 
-### World — Best Use of IDKit
+| Challenge | What we built | Why it matters |
+| --- | --- | --- |
+| **World — Best Use of IDKit** | Server-verified Selfie Check before a worker can apply for new tasks. | App users can enter the marketplace without an Orb visit or an existing work history. |
+| **World — Best Use of World ID for Agents** | Owner identity across agent profiles and fresh authentication for exact payment approvals. | Workers can see the owner's payment record. An agent cannot turn its API access into payment authority. |
+| **Sui — DeFi & Payments** | USDC escrow, settlement, refunds, timeout claims, rejection splits, and ratings through t2000. | Workers can check funding before starting and receive payment directly, with public receipts. |
 
-We use World IDKit to check worker uniqueness before allowing a worker to take part. The server verifies the proof and binds enrollment to the worker's wallet.
+### World IDKit: a check at the point of entry
 
-This gives the marketplace a way to limit duplicate worker accounts. It also separates the human check from customer reviews: a worker can prove uniqueness before they have any work history. It does not prove their skills, location, or the truth of a photo.
+The trust decision happens **before a worker can apply**. We chose Selfie Check so workers can join using the World ID app. It checks liveness and facial similarity, with lower assurance than Orb verification. We reject reused verification identifiers, but do not claim Orb-level uniqueness.
 
-### World — Best Use of World ID for Agents
+The server validates the proof and its binding to the worker account. A failed proof or an old staging verification does not unlock production applications. Identity does not prove skill, location, or the truth of a photo; task evidence and customer reviews serve those separate purposes.
 
-We use World's Human Continuity authentication to recognize the same owner when they return or use another agent profile. Before funding, release, or rejection, the app requires fresh owner authentication and checks an approval tied to the exact task terms.
+### World ID for Agents: an owner behind the action
 
-This gives workers a shared payment history for the owner behind different agents. It also gives the owner a clear approval step when an agent requests a payment action. The agent's API key cannot sign a payment, and World authentication does not replace the owner's wallet signature.
+World Human Continuity lets us recognize the same owner across sessions and agent profiles. Public task details show a pseudonymous owner handle, paid-task count, and total paid to workers. They do not reveal a legal name or the private World identifier.
 
-Public task details show a pseudonymous owner handle and payment history. They do not expose a legal name or the private World identifier.
+Funding, release, and rejection require fresh owner authentication tied to the exact task terms. The owner still signs the wallet transaction. Expired or invalid approvals cannot complete the protected action. This integration uses the event's dev environment, as requested by the challenge.
 
-### Sui — DeFi & Payments
+### Sui: small jobs with real settlement
 
-We use the existing **t2000 escrow and reputation contracts on Sui mainnet**. The reward is funded before work begins. Delivery, release, refund, timeout claims, rejection splits, and ratings have recorded onchain outcomes.
+We use **t2000's existing Sui mainnet escrow and reputation contracts**. Our contribution is the marketplace around them: agent tools, worker verification, owner approvals, private evidence, and payment accounting.
 
-Workers receive USDC directly, with no separate platform withdrawal. Owners and workers can check the receipts, while the app shows the actual worker payout after fees.
+Workers receive USDC without a separate platform withdrawal. The app shows the net payout after fees and checks confirmed receipts before updating earnings. We did not deploy a new escrow contract for this MVP.
 
-Our contribution is the marketplace around those contracts: agent tools, human verification, owner approvals, worker selection, private evidence, and payment accounting. We reused t2000's SDK and deployed contracts; we did not publish a new escrow contract for this MVP.
+## Real payments, with receipts
 
-## Proof: real USDC transactions
+**Five funded scenarios. 0.07 USDC funded in total. Real Sui mainnet transactions.**
 
-On **26 September 2026**, we tested five funded scenarios on Sui mainnet, using **0.07 USDC in total**. Small amounts let us test real settlement without a large demo budget. Every link below opens a mainnet transaction.
+On 26 September 2026, the deployed marketplace completed a **0.02 USDC task**, paid **0.019 USDC to the worker**, and recorded a **five-star review**. We also tested refunds, timeout claims, and rejection splits with small real amounts.
+
+[![A completed ask2human task showing paid status, its USDC reward, and publisher payment history](docs/images/completed-task.png)](https://ask2human.me/tasks/35dc7c07-3a92-4374-be37-d404aedbfbe7)
+
+*The public completed task. Its owner identity is from the World sandbox; its USDC payment is on Sui mainnet. Private task evidence is not shown.*
+
+<details>
+<summary><strong>View all five scenarios and transaction receipts</strong></summary>
 
 | Scenario | Transaction receipts | Confirmed result |
 | --- | --- | --- |
@@ -73,45 +101,63 @@ On **26 September 2026**, we tested five funded scenarios on Sui mainnet, using 
 
 The SDK trial also has receipts for [worker gas funding](https://suiscan.xyz/mainnet/tx/ELfWeQ1RB9wYrGTLmkjGQPRE7yo6Vi1dxAnWrd5PLTNA) and [reputation setup](https://suiscan.xyz/mainnet/tx/GEs7E5k7nrEpRGTszQSrRNWCzQbxQypSgR6FFL2u6aut).
 
-Separate checks matched chain receipts to application balances, earnings, and reviews. Repeating settlement confirmation did not send another payment. Early refund and timeout requests were blocked. Private evidence was available to the task participants and denied to anonymous visitors. The [full proof record](docs/PROOF_OF_TESTING.md) separates chain receipts from API, database, browser, and storage checks.
+</details>
 
-**Demo limits:** World identity checks use sandbox/staging. Mainnet transactions were signed through a controlled local test harness; they do not prove that Slush browser signing works end to end. That browser-wallet test and the final demo recording remain pending. Evidence is reviewed offchain; the app does not prove physical presence or provide onchain arbitration.
+The [full testing proof](docs/PROOF_OF_TESTING.md) records chain receipts, application balances, access checks, and retry behavior. Repeating settlement confirmation did not send another payment. Early refund and timeout requests were blocked. Private evidence was denied to anonymous visitors.
+
+### What remains to be demonstrated
+
+- A real user completing the new **production Selfie Check** journey.
+- A full **Slush browser signing** journey. The recorded mainnet transactions used dedicated demo wallets through a controlled local harness.
+- The final demo recording.
+
+Task evidence is reviewed offchain. The app does not prove physical presence or provide an arbitration service.
 
 ## Technical details
 
 ### Architecture
 
-| Part | Implementation |
+```mermaid
+flowchart LR
+    Agent[AI agent · API / MCP] --> App[ask2human · Next.js]
+    Owner[Owner · approvals and wallet] --> App
+    Worker[Worker · delivery and wallet] --> App
+    App --> World[World · Selfie Check and owner authentication]
+    App --> DB[(PostgreSQL · task and payment records)]
+    App --> S3[Private S3 · evidence]
+    App --> Sui[Sui · t2000 escrow and ratings]
+```
+
+| Layer | Implementation |
 | --- | --- |
-| Web app and API | Next.js 16, React 19, TypeScript; hosted on Vercel |
-| Database | PostgreSQL on Neon; tasks, approvals, budgets, and settlement records |
-| Worker identity | World IDKit v4; proof verification on the server |
-| Owner identity | World Human Continuity OIDC; one-use callbacks and fresh, task-bound approvals |
+| App and API | Next.js 16, React 19, TypeScript; deployed on Vercel |
+| Data | Neon PostgreSQL; private evidence in S3 with authorized signed reads |
+| Worker identity | World IDKit v4 Selfie Check; production proofs verified on the server |
+| Owner identity | World Human Continuity OIDC; one-use callbacks and fresh task approvals |
 | Wallets | Mysten dApp Kit, Wallet Standard, and Slush integration |
-| Payments and reviews | Pinned `@t2000/sdk` 11.7.0; existing Sui mainnet contracts |
-| Evidence | Private S3 objects with authorized, signed reads |
-| Agent connection | Scoped HTTP API and a local stdio MCP connector |
+| Payments | `@t2000/sdk` 11.7.0 and existing Sui mainnet contracts |
+| Agent access | Scoped HTTP API and a local stdio MCP connector |
 
-Wallets hold signing authority. The deployed app and MCP connector do not hold wallet private keys. Transaction bytes are saved before signing, and confirmed receipts are checked before updating payment records. Amounts use integer USDC atomic units: **1 USDC = 1,000,000 units**.
+Wallets hold signing authority; the deployed app and MCP connector do not hold wallet private keys. The app saves transaction bytes before signing and reconciles receipts on retries. Amounts use integer units: **1 USDC = 1,000,000 atomic units**.
 
-A hiring profile stores an agent's permissions and budget; it does not create or run an AI. The external agent decides when to check applicants and call tools. There is no built-in scheduler or outbound notification service.
+A hiring profile stores permissions and a budget. The external agent runs elsewhere and decides when to call tools; the app has no built-in agent scheduler.
 
 ### Connect an agent
 
-Create a hiring profile at [ask2human.me/agents](https://ask2human.me/agents), authorize its limits, and save its scoped API key privately. Then install the connector from this repository:
+Create and authorize a profile at [ask2human.me/agents](https://ask2human.me/agents), then keep its scoped API key private.
 
 ```sh
 npm ci --prefix mcp
 npm test --prefix mcp
 ```
 
-Configure your MCP client to run `node /absolute/path/to/ask2human/mcp/bin/ask2human-mcp.js` with `ASK2HUMAN_API_KEY` in its environment. It calls `https://ask2human.me` by default. The connector is installed from source; it is not published on npm.
+Configure your MCP client to run `node /absolute/path/to/ask2human/mcp/bin/ask2human-mcp.js` with `ASK2HUMAN_API_KEY` in its environment. It connects to `https://ask2human.me` by default. The connector is installed from source, not npm.
 
-See the [MCP setup guide](mcp/README.md), [API reference](docs/API.md), and [agent example](scripts/agent-example.ts). Owner approval and wallet signing stay in the browser flow.
+[MCP setup](mcp/README.md) · [API reference](docs/API.md) · [Agent example](scripts/agent-example.ts)
 
 ### Run locally
 
-Use Node.js 22 or newer and Docker. For a new checkout, copy `.env.example` to `.env` and configure the services. Keep secrets out of Git. Preserve an existing `.env` and database volume.
+Use **Node.js 22+** and **Docker**. For a new checkout, copy `.env.example` to `.env` and configure the services. Keep an existing `.env` and database volume intact.
 
 ```sh
 npm ci
@@ -120,7 +166,7 @@ npm run db:migrate
 npm run dev
 ```
 
-The app runs at `http://127.0.0.1:3001`.
+Open **http://127.0.0.1:3001**.
 
 ```sh
 npm run typecheck
@@ -128,35 +174,31 @@ npm test
 npm run build
 ```
 
-Some integration tests require separately configured services. A skipped test is not evidence that its live flow passed. Use the [acceptance record](docs/ACCEPTANCE.md) for recorded results.
+Database and storage integration tests need separately configured services. See the [deployment guide](docs/DEPLOYMENT.md) and [acceptance record](docs/ACCEPTANCE.md) for setup and recorded results.
 
-### What we learned
+### Integration lessons and feedback
 
-World's owner flow required the correct OIDC client authentication method. Worker staging verification also needed an explicit time window and server token. These steps are documented in the [World integration notes](docs/WORLD.md).
-
-Our feedback for the World tracks:
-
-| Integration | Friction we hit | Suggested improvement |
+| Integration | What we ran into | Most useful improvement |
 | --- | --- | --- |
-| IDKit | A genuine staging proof was rejected until the verification window and server token were configured. | Put staging activation and expiry checks directly in the first-integration checklist. |
-| World ID for Agents | The first token exchange failed because the client authentication method did not match the registration. | Show the registered authentication method alongside a working OIDC client example. |
+| IDKit | A genuine staging proof needed an active verification window and server token. Moving to Selfie Check also meant tracking the credential and environment on each worker record. | Put staging activation and expiry checks in the first-integration checklist. |
+| World ID for Agents | Token exchange initially failed because the client authentication method did not match the registration. | Show the registered method beside a working OIDC client example. |
+| t2000 / Sui | A confirmed transaction and an updated app record are separate steps. Delayed reads and interrupted confirmations needed recovery. | Keep transaction bytes and reconcile existing receipts before retrying. |
 
-We recorded successful exchanges and the fixes, but did not measure time to first success.
+We recorded the fixes and successful test exchanges, but did not measure time to first success. Details: [World integration](docs/WORLD.md) · [t2000 integration](docs/T2000.md).
 
-For payments, a successful transaction and an updated app record are separate steps. Delayed chain reads and interrupted confirmations made receipt recovery important. We kept transaction bytes and checked existing receipts so retries could finish the same payment. See the [t2000 integration notes](docs/T2000.md).
+### Build and reuse
 
-### Reuse and build credits
+The frontend adapts the author's earlier [bnbera marketplace](https://github.com/Lem0nTree/bnbera). [Source provenance](docs/FRONTEND_SOURCES.md) lists the files and revision. We used official integration SDKs and existing t2000 contracts. The earlier custom testnet escrow is archived and is not part of this MVP.
 
-The frontend adapts the author's earlier [bnbera marketplace](https://github.com/Lem0nTree/bnbera); [source provenance](docs/FRONTEND_SOURCES.md) lists the files and revision. Identity, wallet, and storage integrations use their official SDKs. The older custom testnet escrow remains archived and is not used by this MVP. Do not run the legacy publish or trial scripts for the mainnet demo.
+Codex assisted with implementation and review. Remaining technical findings are documented in the [platform report](docs/PLATFORM_REPORT.md); this work has not had an independent security audit.
 
-We used Codex for implementation and review, including separate implementation and verification passes. Protocol reuse and automated checks do not amount to an independent security audit; remaining findings are recorded in the [platform report](docs/PLATFORM_REPORT.md).
+## Project documentation
 
-## Further reading
-
-- [Hiring workflow](docs/HIRING_WORKFLOW.md)
-- [Proof of testing and every transaction receipt](docs/PROOF_OF_TESTING.md)
-- [Current implementation and remaining checks](docs/DEVELOPMENT_CHECKLIST.md)
-- [World identity integration](docs/WORLD.md)
-- [t2000 payment integration](docs/T2000.md)
-- [Deployment guide](docs/DEPLOYMENT.md)
-- [Submission checklist](docs/SUBMISSION.md)
+| Document | What it covers |
+| --- | --- |
+| [Proof of testing](docs/PROOF_OF_TESTING.md) | Every transaction receipt and the limits of each check |
+| [Hiring workflow](docs/HIRING_WORKFLOW.md) | Agent, owner, and worker responsibilities |
+| [World integration](docs/WORLD.md) | Identity flows and production worker configuration |
+| [t2000 integration](docs/T2000.md) | Escrow, fees, settlement, and ratings |
+| [Development checklist](docs/DEVELOPMENT_CHECKLIST.md) | Implementation status and remaining checks |
+| [Submission checklist](docs/SUBMISSION.md) | Demo preparation and submission notes |

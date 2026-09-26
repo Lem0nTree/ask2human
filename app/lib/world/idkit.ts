@@ -87,6 +87,12 @@ export interface VerifiedWorkerIdentity {
   nullifier: string;
   action: string;
   environment: WorldIdKitEnvironment;
+  /** Selfie Check credential identifier returned by IDKit v4. */
+  credential: "selfie";
+  /** Selfie Check issuer schema. */
+  credentialSchema: 11;
+  /** Selfie Check 4.0 integer score. No local threshold is applied. */
+  sybilScore: number;
   signalHash: string;
 }
 
@@ -105,9 +111,20 @@ function isProofWord(value: unknown): value is string {
   return BigInt(value) < (1n << 256n);
 }
 
+function isIntegrityBundle(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return value.version === 2
+    && (value.signature_format === "apple_app_attest" || value.signature_format === "android_keystore")
+    && typeof value.timestamp === "number"
+    && Number.isSafeInteger(value.timestamp)
+    && value.timestamp >= 0
+    && requireNonEmptyString(value.signature)
+    && requireNonEmptyString(value.jwt);
+}
+
 function validateUniquenessResult(
   input: VerifyWorkerIdKitResultInput,
-): { nullifier: string; signalHash: string } {
+): { nullifier: string; signalHash: string; sybilScore: number } {
   if (
     !/^rp_[A-Za-z0-9_-]+$/.test(input.rpId) ||
     !requireNonEmptyString(input.expectedAction) ||
@@ -128,7 +145,8 @@ function validateUniquenessResult(
     result.environment !== input.expectedEnvironment ||
     result.nonce !== input.expectedNonce ||
     !Array.isArray(result.responses) ||
-    result.responses.length !== 1
+    result.responses.length !== 1 ||
+    !isIntegrityBundle(result.integrity_bundle)
   ) {
     throw new WorldIntegrationError("invalid_proof");
   }
@@ -136,14 +154,16 @@ function validateUniquenessResult(
   const proof = result.responses[0];
   if (
     !isRecord(proof) ||
-    proof.identifier !== "proof_of_human" ||
-    proof.issuer_schema_id !== 1 ||
+    proof.identifier !== "selfie" ||
+    proof.issuer_schema_id !== 11 ||
     !Array.isArray(proof.proof) ||
     proof.proof.length !== 5 ||
     !proof.proof.every(isProofWord) ||
     typeof proof.nullifier !== "string" ||
     !/^0x[0-9a-f]{64}$/i.test(proof.nullifier) ||
-    typeof proof.signal_hash !== "string"
+    typeof proof.signal_hash !== "string" ||
+    typeof proof.sybil_score !== "number" ||
+    !Number.isSafeInteger(proof.sybil_score)
   ) {
     throw new WorldIntegrationError("invalid_proof");
   }
@@ -162,6 +182,7 @@ function validateUniquenessResult(
   return {
     nullifier: proof.nullifier.toLowerCase(),
     signalHash: expectedSignalHash.toLowerCase(),
+    sybilScore: proof.sybil_score,
   };
 }
 
@@ -229,7 +250,7 @@ export async function verifyWorkerIdKitResult(
     verification.results.length !== 1 ||
     !isRecord(verification.results[0]) ||
     verification.results[0].success !== true ||
-    verification.results[0].identifier !== "proof_of_human" ||
+    verification.results[0].identifier !== "selfie" ||
     typeof verification.results[0].nullifier !== "string" ||
     verification.results[0].nullifier.toLowerCase() !== extracted.nullifier
   ) {
@@ -240,6 +261,9 @@ export async function verifyWorkerIdKitResult(
     nullifier: extracted.nullifier,
     action: input.expectedAction,
     environment: input.expectedEnvironment,
+    credential: "selfie",
+    credentialSchema: 11,
+    sybilScore: extracted.sybilScore,
     signalHash: extracted.signalHash,
   };
 }

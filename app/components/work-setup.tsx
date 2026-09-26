@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 const WORK_STEPS = [
   { label: "Create profile", title: "Create or recover your profile", hint: "Tell task owners what you do and where you work." },
   { label: "Link payout wallet", title: "Link your payout wallet", hint: "Create or recover your profile first, then link the Sui wallet that will receive your payments." },
-  { label: "Verify identity", title: "Complete the World identity check", hint: "Link your payout wallet first, then check your worker account for uniqueness." },
+  { label: "Verify identity", title: "Complete World Selfie Check", hint: "Link your payout wallet, then take a selfie in the World ID app. No Orb visit is needed." },
   { label: "Find and do work", title: "Find a task and follow it to payment", hint: "Complete your profile, wallet, and identity steps before applying for work." },
 ];
 
@@ -12,7 +12,7 @@ export function WorkIntro() {
     <p className="eyebrow">Worker workspace · earn with your skills</p>
     <h1>Set up once. <span>Work with clarity.</span></h1>
     <p>Follow four steps to create your worker profile, link a payout wallet, verify your identity, and start applying for tasks.</p>
-    <small>World checks account uniqueness. Task owners review your delivery, and confirmed USDC payments appear in your earnings.</small>
+    <small>World Selfie Check checks liveness and facial similarity. Task owners review your delivery, and confirmed USDC payments appear in your earnings.</small>
   </section>;
 }
 

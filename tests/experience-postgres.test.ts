@@ -17,6 +17,8 @@ test('experience PostgreSQL selection, privacy, review timing, earnings, and con
   const priorAppUrl = process.env.APP_URL;
   const priorDatabaseUrl = process.env.DATABASE_URL;
   const priorAskDatabaseUrl = process.env.ASK2HUMAN_DATABASE_URL;
+  const priorWorldEnvironment = process.env.WORLD_ID_ENVIRONMENT;
+  const priorWorkerAction = process.env.WORLD_ID_WORKER_ACTION;
   const admin = postgres(testDatabaseUrl!, { max: 1, idle_timeout: 2, connect_timeout: 8, onnotice: () => {} });
   let scoped: ReturnType<typeof postgres> | undefined;
 
@@ -27,6 +29,8 @@ test('experience PostgreSQL selection, privacy, review timing, earnings, and con
     process.env.ASK2HUMAN_DATABASE_URL = scopedUrl.toString();
     process.env.DATABASE_URL = scopedUrl.toString();
     process.env.APP_URL = 'https://test.invalid';
+    process.env.WORLD_ID_ENVIRONMENT = 'production';
+    process.env.WORLD_ID_WORKER_ACTION = 'test-worker-enrollment';
     scoped = postgres(scopedUrl.toString(), { max: 6, idle_timeout: 2, connect_timeout: 8, onnotice: () => {}, prepare: false });
 
     await scoped`CREATE TABLE schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`;
@@ -72,8 +76,11 @@ test('experience PostgreSQL selection, privacy, review timing, earnings, and con
     `;
     for (let index = 0; index < workerIds.length; index += 1) {
       await scoped`
-        INSERT INTO workers (id, display_name, category, area, status, wallet_address, wallet_verified_at, idkit_nullifier, idkit_verified_at)
-        VALUES (${workerIds[index]}, ${`worker ${index + 1}`}, 'home', 'test area', 'VERIFIED', ${workerWallets[index]}, now(), ${`nullifier-${workerIds[index]}`}, now())
+        INSERT INTO workers (id, display_name, category, area, status, wallet_address, wallet_verified_at,
+          idkit_nullifier, idkit_verified_at, idkit_verified_environment, idkit_credential,
+          idkit_credential_schema, idkit_sybil_score, idkit_action)
+        VALUES (${workerIds[index]}, ${`worker ${index + 1}`}, 'home', 'test area', 'VERIFIED', ${workerWallets[index]}, now(),
+          ${`nullifier-${workerIds[index]}`}, now(), 'production', 'selfie', 11, 7, 'test-worker-enrollment')
       `;
     }
 
@@ -281,6 +288,10 @@ test('experience PostgreSQL selection, privacy, review timing, earnings, and con
       else process.env.DATABASE_URL = priorDatabaseUrl;
       if (priorAskDatabaseUrl === undefined) delete process.env.ASK2HUMAN_DATABASE_URL;
       else process.env.ASK2HUMAN_DATABASE_URL = priorAskDatabaseUrl;
+      if (priorWorldEnvironment === undefined) delete process.env.WORLD_ID_ENVIRONMENT;
+      else process.env.WORLD_ID_ENVIRONMENT = priorWorldEnvironment;
+      if (priorWorkerAction === undefined) delete process.env.WORLD_ID_WORKER_ACTION;
+      else process.env.WORLD_ID_WORKER_ACTION = priorWorkerAction;
     }
   }
 });

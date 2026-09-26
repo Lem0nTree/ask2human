@@ -34,11 +34,11 @@ test("task review and rejection terms convert user units to API units", () => {
 });
 
 test("World labels distinguish staging and sandbox identity checks from production", () => {
-  assert.equal(worldEnvironmentDisclosure("staging"), "World staging identity demo");
-  assert.equal(worldEnvironmentDisclosure("sandbox"), "World sandbox identity demo");
-  assert.equal(worldEnvironmentDisclosure("production"), "World production identity check");
+  assert.equal(worldEnvironmentDisclosure("staging"), "World staging Selfie Check demo");
+  assert.equal(worldEnvironmentDisclosure("sandbox"), "World sandbox Selfie Check demo");
+  assert.equal(worldEnvironmentDisclosure("production"), "World production Selfie Check");
   assert.equal(worldEnvironmentDisclosure(null), "World identity environment not configured");
-  assert.equal(worldCheckStatus("staging", true), "Staging uniqueness check passed");
+  assert.equal(worldCheckStatus("staging", true), "Staging selfie check passed");
   assert.equal(worldCheckBadge("sandbox", true), "World sandbox check");
   assert.equal(worldCheckBadge(null, true), "World check · environment unknown");
 });

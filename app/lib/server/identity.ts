@@ -11,6 +11,91 @@ import { createWorkerIdKitRequest, verifyWorkerIdKitResult } from '../world';
 
 type WalletPurpose = 'worker' | 'owner' | 'recover_worker' | 'recover_owner';
 
+export const WORKER_WORLD_CREDENTIAL = 'selfie' as const;
+export const WORKER_WORLD_CREDENTIAL_SCHEMA = 11 as const;
+
+export interface CurrentWorkerWorldVerificationConfig {
+  environment: WorldIdKitEnvironment;
+  action: string;
+}
+
+/**
+ * Return the provenance that a worker proof must have to be current. A missing
+ * or closed test-window configuration makes every stored proof ineligible.
+ * Historical VERIFIED rows intentionally do not satisfy this projection when
+ * migration provenance columns are null.
+ */
+export function currentWorkerWorldVerificationConfig(): CurrentWorkerWorldVerificationConfig | null {
+  const environment = process.env.WORLD_ID_ENVIRONMENT;
+  const action = process.env.WORLD_ID_WORKER_ACTION;
+  if (
+    !['production', 'staging', 'sandbox'].includes(environment ?? '') ||
+    typeof action !== 'string' ||
+    action.trim().length === 0 ||
+    (environment !== 'production' && !process.env.WORLD_ID_STAGING_VERIFICATION_TOKEN)
+  ) {
+    return null;
+  }
+  return { environment: environment as WorldIdKitEnvironment, action };
+}
+
+export function isCurrentWorkerWorldVerified(worker: {
+  status?: unknown;
+  idkit_verified_at?: unknown;
+  idkit_verified_environment?: unknown;
+  idkit_credential?: unknown;
+  idkit_credential_schema?: unknown;
+  idkit_action?: unknown;
+}): boolean {
+  const config = currentWorkerWorldVerificationConfig();
+  return Boolean(
+    config &&
+    worker.status === 'VERIFIED' &&
+    worker.idkit_verified_at &&
+    worker.idkit_verified_environment === config.environment &&
+    worker.idkit_credential === WORKER_WORLD_CREDENTIAL &&
+    Number(worker.idkit_credential_schema) === WORKER_WORLD_CREDENTIAL_SCHEMA &&
+    worker.idkit_action === config.action,
+  );
+}
+
+function configuredWorkerIdKit(): {
+  appId: string;
+  rpId: string;
+  signingKeyHex: string;
+  action: string;
+  environment: WorldIdKitEnvironment;
+  stagingVerificationToken?: string;
+} {
+  const { WORLD_ID_APP_ID, WORLD_ID_RP_ID, WORLD_ID_RP_SIGNING_KEY, WORLD_ID_WORKER_ACTION, WORLD_ID_ENVIRONMENT, WORLD_ID_STAGING_VERIFICATION_TOKEN } = process.env;
+  assert(
+    WORLD_ID_APP_ID && WORLD_ID_RP_ID && WORLD_ID_RP_SIGNING_KEY && WORLD_ID_WORKER_ACTION && WORLD_ID_ENVIRONMENT,
+    503,
+    'world_id_not_configured',
+    'Worker verification is not configured.',
+  );
+  assert(
+    ['production', 'staging', 'sandbox'].includes(WORLD_ID_ENVIRONMENT),
+    503,
+    'world_id_not_configured',
+    'Worker verification is not configured.',
+  );
+  assert(
+    WORLD_ID_ENVIRONMENT === 'production' || WORLD_ID_STAGING_VERIFICATION_TOKEN,
+    503,
+    'world_id_not_configured',
+    'Worker verification is awaiting the configured World test window.',
+  );
+  return {
+    appId: WORLD_ID_APP_ID,
+    rpId: WORLD_ID_RP_ID,
+    signingKeyHex: WORLD_ID_RP_SIGNING_KEY,
+    action: WORLD_ID_WORKER_ACTION,
+    environment: WORLD_ID_ENVIRONMENT as WorldIdKitEnvironment,
+    stagingVerificationToken: WORLD_ID_STAGING_VERIFICATION_TOKEN,
+  };
+}
+
 export async function createWorkerProfile(session: Session, input: {
   displayName: string;
   category: string;
@@ -119,22 +204,18 @@ export async function completeWalletChallenge(session: Session, challengeId: str
 
 export async function startWorkerVerification(session: Session) {
   const worker = await workerForSession(session);
-  assert(worker.status === 'PENDING', 409, 'worker_already_verified', 'This worker is already verified.');
+  assert(!isCurrentWorkerWorldVerified(worker), 409, 'worker_already_verified', 'This worker is already verified.');
   assert(worker.wallet_address, 409, 'worker_wallet_required', 'Link a Sui payout wallet before verifying this worker.');
-  const { WORLD_ID_APP_ID, WORLD_ID_RP_ID, WORLD_ID_RP_SIGNING_KEY, WORLD_ID_WORKER_ACTION, WORLD_ID_ENVIRONMENT } = process.env;
-  assert(WORLD_ID_APP_ID && WORLD_ID_RP_ID && WORLD_ID_RP_SIGNING_KEY && WORLD_ID_WORKER_ACTION && WORLD_ID_ENVIRONMENT,
-    503, 'world_id_not_configured', 'Worker verification is not configured.');
-  assert(WORLD_ID_ENVIRONMENT === 'production' || process.env.WORLD_ID_STAGING_VERIFICATION_TOKEN,
-    503, 'world_id_not_configured', 'Worker verification is awaiting the configured World test window.');
+  const config = configuredWorkerIdKit();
 
   let request: Awaited<ReturnType<typeof createWorkerIdKitRequest>>;
   try {
     request = await createWorkerIdKitRequest({
-      appId: WORLD_ID_APP_ID,
-      rpId: WORLD_ID_RP_ID,
-      signingKeyHex: WORLD_ID_RP_SIGNING_KEY,
-      action: WORLD_ID_WORKER_ACTION,
-      environment: WORLD_ID_ENVIRONMENT as WorldIdKitEnvironment,
+      appId: config.appId,
+      rpId: config.rpId,
+      signingKeyHex: config.signingKeyHex,
+      action: config.action,
+      environment: config.environment,
       signal: worker.id,
     });
   } catch {
@@ -147,36 +228,56 @@ export async function startWorkerVerification(session: Session) {
   const expiresAt = new Date(Math.min(Date.now() + 10 * 60 * 1000, requestExpiry));
   assert(Number.isFinite(expiresAt.getTime()) && expiresAt.getTime() > Date.now(), 503, 'world_id_invalid_context', 'Worker verification could not be started.');
   await db()`
-    INSERT INTO idkit_challenges (id, worker_id, expected_nonce, expected_action, expected_environment, expires_at)
-    VALUES (${challengeId}, ${worker.id}, ${nonce}, ${WORLD_ID_WORKER_ACTION}, ${WORLD_ID_ENVIRONMENT}, ${expiresAt})
+    INSERT INTO idkit_challenges (id, worker_id, expected_nonce, expected_action, expected_environment, expected_rp_id, expires_at)
+    VALUES (${challengeId}, ${worker.id}, ${nonce}, ${config.action}, ${config.environment}, ${config.rpId}, ${expiresAt})
   `;
   return { challengeId, request, expiresAt: expiresAt.toISOString() };
 }
 
 export async function completeWorkerVerification(session: Session, challengeId: string, idkitResult: unknown) {
+  const config = configuredWorkerIdKit();
   const [challenge] = await db()`
-    SELECT id, worker_id, expected_nonce, expected_action, expected_environment, expires_at, consumed_at
+    SELECT id, worker_id, expected_nonce, expected_action, expected_environment, expected_rp_id, expires_at, consumed_at
     FROM idkit_challenges WHERE id = ${challengeId}
   `;
   assert(challenge && challenge.worker_id === session.workerId, 404, 'idkit_challenge_missing', 'Verification request was not found.');
   assert(!challenge.consumed_at && new Date(challenge.expires_at).getTime() > Date.now(), 409, 'idkit_challenge_expired', 'Verification request has expired or was already used.');
+  assert(
+    challenge.expected_action === config.action &&
+      challenge.expected_environment === config.environment &&
+      challenge.expected_rp_id === config.rpId,
+    409,
+    'idkit_challenge_stale',
+    'This verification request belongs to an older World configuration. Start a new request.',
+  );
 
   await db().begin(async (tx) => {
-    const [locked] = await tx`SELECT id, worker_id, expires_at, consumed_at FROM idkit_challenges WHERE id = ${challengeId} FOR UPDATE`;
+    const [locked] = await tx`
+      SELECT id, worker_id, expected_action, expected_environment, expected_rp_id, expires_at, consumed_at
+      FROM idkit_challenges WHERE id = ${challengeId} FOR UPDATE
+    `;
     assert(locked && locked.worker_id === session.workerId, 404, 'idkit_challenge_missing', 'Verification request was not found.');
     assert(!locked.consumed_at && new Date(locked.expires_at).getTime() > Date.now(), 409, 'idkit_challenge_expired', 'Verification request has expired or was already used.');
+    assert(
+      locked.expected_action === config.action &&
+        locked.expected_environment === config.environment &&
+        locked.expected_rp_id === config.rpId,
+      409,
+      'idkit_challenge_stale',
+      'This verification request belongs to an older World configuration. Start a new request.',
+    );
     await tx`UPDATE idkit_challenges SET consumed_at = now() WHERE id = ${challengeId}`;
   });
 
   let verified: Awaited<ReturnType<typeof verifyWorkerIdKitResult>>;
   try {
     verified = await verifyWorkerIdKitResult({
-      rpId: process.env.WORLD_ID_RP_ID!,
+      rpId: config.rpId,
       expectedAction: challenge.expected_action,
       expectedEnvironment: challenge.expected_environment as WorldIdKitEnvironment,
       expectedSignal: challenge.worker_id,
       expectedNonce: challenge.expected_nonce,
-      stagingVerificationToken: process.env.WORLD_ID_STAGING_VERIFICATION_TOKEN,
+      stagingVerificationToken: config.stagingVerificationToken,
       idkitResult,
     });
   } catch (error) {
@@ -191,12 +292,24 @@ export async function completeWorkerVerification(session: Session, challengeId: 
 
   try {
     await db().begin(async (tx) => {
-      const [worker] = await tx`SELECT id, status, wallet_address FROM workers WHERE id = ${challenge.worker_id} FOR UPDATE`;
+      const [worker] = await tx`
+        SELECT id, status, wallet_address, idkit_verified_at, idkit_verified_environment,
+               idkit_credential, idkit_credential_schema, idkit_action
+        FROM workers WHERE id = ${challenge.worker_id} FOR UPDATE
+      `;
       assert(worker, 404, 'worker_missing', 'Worker profile was not found.');
       assert(worker.wallet_address, 409, 'worker_wallet_required', 'Link a Sui payout wallet before verifying this worker.');
-      assert(worker.status === 'PENDING', 409, 'worker_already_verified', 'This worker is already verified.');
+      assert(!isCurrentWorkerWorldVerified(worker), 409, 'worker_already_verified', 'This worker is already verified.');
       await tx`
-        UPDATE workers SET status = 'VERIFIED', idkit_nullifier = ${verified.nullifier}, idkit_verified_at = now()
+        UPDATE workers
+        SET status = 'VERIFIED',
+            idkit_nullifier = ${verified.nullifier},
+            idkit_verified_at = now(),
+            idkit_verified_environment = ${verified.environment},
+            idkit_credential = ${verified.credential},
+            idkit_credential_schema = ${verified.credentialSchema},
+            idkit_sybil_score = ${verified.sybilScore},
+            idkit_action = ${verified.action}
         WHERE id = ${challenge.worker_id}
       `;
       await tx`
@@ -215,7 +328,9 @@ export async function completeWorkerVerification(session: Session, challengeId: 
 export async function workerForSession(session: Session) {
   assert(session.workerId, 401, 'worker_required', 'A worker profile is required.');
   const [worker] = await db()`
-    SELECT id, display_name, category, area, skills, status, wallet_address, wallet_verified_at, idkit_verified_at
+    SELECT id, display_name, category, area, skills, status, wallet_address, wallet_verified_at,
+           idkit_nullifier, idkit_verified_at, idkit_verified_environment, idkit_credential,
+           idkit_credential_schema, idkit_sybil_score, idkit_action
     FROM workers WHERE id = ${session.workerId}
   `;
   assert(worker, 404, 'worker_missing', 'Worker profile was not found.');
