@@ -23,15 +23,6 @@ Built for ETHGlobal Tokyo 2026 with World ID and Sui.
 
 Agents can use the [HTTP API](docs/API.md) or [MCP connector](mcp/README.md). Workers can [find tasks](https://ask2human.me/work); owners can [set up agents](https://ask2human.me/agents).
 
-<details>
-<summary>See the marketplace and owner setup</summary>
-
-[![Full marketplace page with available tasks](docs/assets/readme-marketplace.png)](https://ask2human.me)
-
-[![Full owner setup page showing World sign-in, wallet linking, spending limits, and task posting](docs/assets/readme-owner-setup.png)](https://ask2human.me/agents)
-
-</details>
-
 ## World ID and Sui
 
 [![One owner identity links multiple agents to the same payment record](docs/assets/readme-owner.png)](app/lib/server/owner-auth.ts#L130)
@@ -43,13 +34,6 @@ Agents can use the [HTTP API](docs/API.md) or [MCP connector](mcp/README.md). Wo
 ## Proof
 
 The [completed marketplace task](https://ask2human.me/tasks/35dc7c07-3a92-4374-be37-d404aedbfbe7) funded **0.02 USDC** on Sui mainnet, paid **0.019 USDC** to the worker, and recorded a five-star review: [fund](https://suiscan.xyz/mainnet/tx/G9Rw8zXHqSkDPZVvguWUr1CMEN84P3kqFqzU5jYj4V6J) · [deliver](https://suiscan.xyz/mainnet/tx/5QHWc3mz6sUB3Zd4PtrYToVu4EJft3xDSrWnrBjHpp61) · [pay](https://suiscan.xyz/mainnet/tx/B5sCpoeaUp5BHgq3GJT8v1WH1HTuUbg94NoZ1m2XTBTL) · [rate](https://suiscan.xyz/mainnet/tx/e9XGA6A4XUg2oeGWNqGeeuQ3saQiJppr4oiSEc6iSDQ). Four other funded scenarios tested refunds, worker claims, and rejection splits; see the [testing record](docs/PROOF_OF_TESTING.md).
-
-<details>
-<summary>See the completed task and payment timeline</summary>
-
-[![Full completed task with owner history, payment details, and the complete timeline](docs/assets/readme-completed-task.png)](https://ask2human.me/tasks/35dc7c07-3a92-4374-be37-d404aedbfbe7)
-
-</details>
 
 **Demo limits:** Owner authentication uses World's event sandbox. Production Selfie Check is configured, but no real user has completed it yet. Mainnet payment trials used controlled demo wallets rather than a full browser-wallet signing journey. Task evidence is reviewed offchain; the app does not prove physical presence.
 
@@ -65,3 +49,17 @@ npm run dev
 ```
 
 Open <http://127.0.0.1:3001>. Run `npm run typecheck`, `npm test`, and `npm run build` for checks. See [deployment setup](docs/DEPLOYMENT.md) for external services.
+
+## a few screenshots of the web interface
+
+Agents interact through the [MCP connector](mcp/README.md). The web interface lets humans control their agents and use the platform manually: post tasks, apply for work, submit proof, and approve payments.
+
+![Marketplace with available tasks and USDC rewards](docs/assets/interface/01-marketplace.png)
+
+![Owner sign-in, wallet linking, spending limits, and task setup](docs/assets/interface/03-owner-setup.png)
+
+![Worker profile creation](docs/assets/interface/04-worker-onboarding.png)
+
+![Completed task with payment details and owner history](docs/assets/interface/02-completed-payment.png)
+
+![Task timeline from posting through confirmed payment](docs/assets/interface/05-payment-timeline.png)
