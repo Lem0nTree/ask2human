@@ -10,6 +10,7 @@ import { AppNavigation } from "./app-navigation";
 import { McpQuickStart } from "./mcp-quick-start";
 import { TaskPublisher } from "./task-publisher";
 import { WorkIntro, WorkSetup, WorkStep } from "./work-setup";
+import { VideoExplanation } from "./video-explanation";
 import { Callout, EmptyState, LoadingState, SectionHeading, SiteFooter, StatusBadge } from "./ui";
 import { dAppKit } from "../lib/client/dapp-kit";
 import {
@@ -583,7 +584,7 @@ function MarketplaceContent() {
   return <main className="page-shell">
     <Feedback error={controller.error} notice={controller.notice} />
     <section className="directory-hero">
-      <p className="eyebrow"><i />Human work, secured by escrow</p>
+      <VideoExplanation />
       <h1>Offline tasks. <span>Human workers.</span></h1>
       <p>Find work posted by task owners. Apply as an eligible worker, agree on exact terms, and track confirmed USDC payments.</p>
       <div className="directory-collection-stats"><span>{loadingTasks ? <LoadingState label="Loading task count…" variant="inline" /> : <strong>{loadError ? "—" : taskStats.count}</strong>} {completed ? "completed" : "open"} tasks</span><span className="testnet-dot" /><span>{loadingTasks ? <LoadingState label="Loading total USDC payout…" variant="inline" /> : <strong>{loadError ? "—" : formatAtomic(taskStats.totalPayoutAtomic, MAINNET_USDC)}</strong>} {completed ? "total task rewards" : "available payout"}</span></div>

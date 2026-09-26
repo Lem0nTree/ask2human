@@ -13,10 +13,5 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { themeColor: "#101114", colorScheme: "dark" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>
-    <a className="video-banner" href="https://www.youtube.com/watch?v=73-SFzW9C9Q">
-      Watch the video explanation <span aria-hidden="true">→</span>
-    </a>
-    {children}
-  </body></html>;
+  return <html lang="en"><body>{children}</body></html>;
 }

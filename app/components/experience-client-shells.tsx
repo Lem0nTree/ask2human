@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useState, type ChangeEvent, type ReactNode } from "react";
 import { BrandMark, LoadingState, SiteFooter } from "./ui";
 import { WorkIntro, WorkSetup, WorkStep } from "./work-setup";
+import { VideoExplanation } from "./video-explanation";
 
 function ExperienceFallbackFrame({ children }: { children: ReactNode }) {
   return <>
@@ -44,7 +45,7 @@ function MarketplaceFallback() {
 
   return <ExperienceFallbackFrame><main className="page-shell">
     <section className="directory-hero">
-      <p className="eyebrow"><i />Human work, secured by escrow</p>
+      <VideoExplanation />
       <h1>Offline tasks. <span>Human workers.</span></h1>
       <p>Find work posted by task owners. Apply as an eligible worker, agree on exact terms, and track confirmed USDC payments.</p>
       <div className="directory-collection-stats"><span><LoadingState label="Loading open task count…" variant="inline" /> open tasks</span><span className="testnet-dot" /><span><LoadingState label="Loading total USDC payout…" variant="inline" /> available payout</span></div>
